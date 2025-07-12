@@ -25,8 +25,11 @@ SECRET_KEY = 'django-insecure-3nvg(sg7z(q^1b7a%1ll85ay79$(ro63l8obxdbp@@4y!cbal8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = [
+    'rms-production-7292.up.railway.app',
+    'localhost',
+    '127.0.0.1',
+]
 
 # Application definition
 
@@ -37,11 +40,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # Third party apps
     'rest_framework',
     'drf_yasg',
-    
+
     # Local apps
     'accounts',
     'restaurants',
@@ -125,6 +128,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Static files directory
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
