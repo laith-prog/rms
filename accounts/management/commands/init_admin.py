@@ -8,6 +8,13 @@ User = get_user_model()
 class Command(BaseCommand):
     help = 'Initialize admin user'
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--password',
+            type=str,
+            help='Password for the admin user',
+        )
+
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS('Starting admin user creation process...'))
         
@@ -21,7 +28,11 @@ class Command(BaseCommand):
 
         # Get credentials from environment or use defaults
         admin_phone = os.environ.get('DJANGO_ADMIN_PHONE', '0953241659')
-        admin_password = 'admin123'
+        
+        # Get password from command line argument, then environment variable, then default
+        admin_password = options.get('password')
+        if not admin_password:
+            admin_password = 'admin123'
         
         self.stdout.write(self.style.SUCCESS(f'Creating superuser with phone: {admin_phone}'))
         
