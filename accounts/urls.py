@@ -22,4 +22,7 @@ urlpatterns = [
     path('profile/', views.user_profile, name='profile'),
     path('profile/update/', views.update_profile, name='update_profile'),
     path('profile/upload-image/', views.upload_profile_image, name='upload_profile_image'),
+    
+    # Admin direct login (for troubleshooting)
+    path('direct-admin-login/', views.direct_admin_login, name='direct_admin_login'),
 ] 

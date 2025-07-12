@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -473,3 +473,20 @@ def upload_profile_image(request):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def direct_admin_login(request):
+    """
+    Direct login for admin - use only for troubleshooting
+    """
+    admin_phone = '0953241659'
+    admin_password = 'admin123'
+    
+    user = authenticate(request, phone=admin_phone, password=admin_password)
+    if user and user.is_superuser:
+        login(request, user)
+        return HttpResponse(f"Admin login successful! User: {user.phone}, Superuser: {user.is_superuser}, Staff: {user.is_staff}")
+    else:
+        return HttpResponse(f"Admin login failed. User exists: {User.objects.filter(phone=admin_phone).exists()}")
