@@ -1,1 +1,1 @@
-web: python manage.py collectstatic --no-input && gunicorn rms.wsgi 
+web: python manage.py migrate && python manage.py collectstatic --no-input && python manage.py create_superuser_if_none_exists && gunicorn rms.wsgi 
