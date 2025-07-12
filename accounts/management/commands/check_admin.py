@@ -20,7 +20,7 @@ class Command(BaseCommand):
 
         for user in superusers:
             self.stdout.write(self.style.SUCCESS(f'- Phone: {user.phone}'))
-            self.stdout.write(self.style.SUCCESS(f'- Phone: {user.password}'))
+            self.stdout.write(self.style.SUCCESS(f'- password: {user.password}'))
             self.stdout.write(self.style.SUCCESS(f'  First name: {user.first_name}'))
             self.stdout.write(self.style.SUCCESS(f'  Last name: {user.last_name}'))
             self.stdout.write(self.style.SUCCESS(f'  Email: {user.email}'))
