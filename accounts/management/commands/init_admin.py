@@ -21,7 +21,7 @@ class Command(BaseCommand):
 
         # Get credentials from environment or use defaults
         admin_phone = os.environ.get('DJANGO_ADMIN_PHONE', '0953241659')
-        admin_password = os.environ.get('DJANGO_ADMIN_PASSWORD', 'admin123')
+        admin_password = 'admin123'
         
         self.stdout.write(self.style.SUCCESS(f'Creating superuser with phone: {admin_phone}'))
         
