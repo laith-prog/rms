@@ -481,8 +481,9 @@ def direct_admin_login(request):
     """
     Direct login for admin - use only for troubleshooting
     """
-    admin_phone = '0953241659'
-    admin_password = 'admin123'
+    import os
+    admin_phone = os.environ.get('DJANGO_ADMIN_PHONE', '0953241659')
+    admin_password = os.environ.get('DJANGO_ADMIN_PASSWORD', 'admin123')
     
     user = authenticate(request, phone=admin_phone, password=admin_password)
     if user and user.is_superuser:
