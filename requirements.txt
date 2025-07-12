@@ -1,6 +1,54 @@
+
+# Django and Django REST Framework
 Django==5.2.4
 djangorestframework==3.16.0
 djangorestframework-simplejwt==5.3.0
+
+# Image Processing
 pillow==11.3.0
+
+# Environment Variables
 python-dotenv==1.0.1
-drf-yasg==1.21.10 
+
+# API Documentation
+drf-yasg==1.21.10
+
+# Database (if using PostgreSQL in production)
+# psycopg2-binary==2.9.9
+
+# CORS headers for frontend integration
+django-cors-headers==4.3.1
+
+# Deployment
+gunicorn==21.2.0
+whitenoise==6.6.0
+
+# Testing
+pytest==7.4.3
+pytest-django==4.7.0
+
+# Development Tools
+django-debug-toolbar==4.2.0
+
+# Security
+django-ratelimit==4.1.0
+
+# Phone Verification
+twilio==8.10.0
+
+# Geolocation
+geopy==2.4.1
+
+# Payment Processing
+stripe==7.13.0
+
+# Real-time updates
+channels==4.0.0
+channels-redis==4.1.0
+
+# Caching
+django-redis==5.4.0
+
+# Background Tasks
+celery==5.3.6
+redis==5.0.1 
