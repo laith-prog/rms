@@ -1,1 +1,1 @@
-web: DJANGO_SUPERUSER_PHONE=0953241659 DJANGO_SUPERUSER_PASSWORD=admin123 DJANGO_SUPERUSER_EMAIL=admin@example.com python manage.py migrate && python manage.py collectstatic --no-input && python manage.py create_superuser_if_none_exists && gunicorn rms.wsgi 
+web: bash railway_startup.sh 
