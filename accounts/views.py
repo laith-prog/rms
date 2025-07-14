@@ -2,7 +2,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -43,7 +42,6 @@ from .permissions import IsCustomer, IsStaffMember
     },
     operation_description="Send a verification code to the provided phone number. Only requires phone number in request."
 )
-@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def send_verification_code(request):
@@ -81,7 +79,6 @@ def send_verification_code(request):
     },
     operation_description="Verify a phone number using the provided verification code"
 )
-@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_phone(request):
@@ -121,7 +118,6 @@ def verify_phone(request):
     },
     operation_description="Register a new user (customer) with a verified phone number"
 )
-@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_user(request):
