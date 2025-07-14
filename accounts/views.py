@@ -12,6 +12,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.conf import settings
 
 from .models import User, CustomerProfile, StaffProfile, PhoneVerification, PasswordReset
 from .serializers import (
@@ -143,6 +144,7 @@ def register_user(request):
         'success': 'User registered successfully',
         'access': str(refresh.access_token),
         'refresh': str(refresh),
+        'access_token_lifetime': settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds() // 60,
         'user': {
             'id': user.id,
             'phone': user.phone,
@@ -204,6 +206,7 @@ def login_user(request):
             'success': 'Login successful',
             'access': str(refresh.access_token),
             'refresh': str(refresh),
+            'access_token_lifetime': settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds() // 60,
             'user': {
                 'id': user.id,
                 'phone': user.phone,

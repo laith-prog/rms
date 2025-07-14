@@ -4,6 +4,7 @@ from .models import CustomerProfile, PhoneVerification, PasswordReset
 from django.utils import timezone
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.conf import settings
 
 User = get_user_model()
 
@@ -34,6 +35,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'is_customer': user.is_customer,
             'is_staff_member': user.is_staff_member,
         }
+        
+        # Add access token expiration time in minutes
+        data['access_token_lifetime'] = settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds() // 60
         
         return data
 
