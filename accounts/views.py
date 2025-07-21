@@ -34,24 +34,23 @@ from .permissions import IsCustomer, IsStaffMember
                 properties={
                     'success': openapi.Schema(type=openapi.TYPE_STRING, description="Success message"),
                     'code': openapi.Schema(type=openapi.TYPE_STRING, description="Verification code (only included in development)"),
-                    'phone': openapi.Schema(type=openapi.TYPE_STRING, description="Phone number"),
-                    'user_exists': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether a user with this phone number already exists")
+                    'phone': openapi.Schema(type=openapi.TYPE_STRING, description="Phone number")
                 }
             )
         ),
-        400: 'Invalid phone number',
+        400: 'Invalid phone number or phone already registered',
     },
-    operation_description="Send a verification code to the provided phone number. Only requires phone number in request."
+    operation_description="Send a verification code to the provided phone number for new user registration. Only requires phone number in request."
 )
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def send_verification_code(request):
     """
-    Send a verification code to the provided phone number
+    Send a verification code to the provided phone number for new user registration
     
     This endpoint generates a 6-digit verification code and sends it to the user's phone.
     In a production environment, this would integrate with an SMS service.
-    The response indicates whether a user with this phone number already exists.
+    The phone number must not already be registered with an existing account.
     """
     serializer = PhoneVerificationSerializer(data=request.data)
     if not serializer.is_valid():
@@ -59,8 +58,9 @@ def send_verification_code(request):
     
     phone = serializer.validated_data['phone']
     
-    # Check if user already exists
-    user_exists = User.objects.filter(phone=phone).exists()
+    # Check if user already exists - for registration, the phone should NOT exist
+    if User.objects.filter(phone=phone).exists():
+        return Response({'error': 'Phone number is already registered'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Generate and send verification code
     verification = PhoneVerification.generate_code(phone)
@@ -71,8 +71,7 @@ def send_verification_code(request):
     return Response({
         'success': 'Verification code sent',
         'code': verification.code,  # Remove this in production
-        'phone': phone,
-        'user_exists': user_exists
+        'phone': phone
     }, status=status.HTTP_200_OK)
 
 
@@ -249,13 +248,13 @@ def logout_user(request):
         200: 'Password reset code sent successfully',
         404: 'User not found',
     },
-    operation_description="Send a password reset code to the user's phone"
+    operation_description="Send a password reset code to an existing user's phone"
 )
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def forgot_password(request):
     """
-    Send a password reset code to the user's phone
+    Send a password reset code to an existing user's phone
     
     This endpoint generates a 6-digit reset code and sends it to the user's phone.
     In a production environment, this would integrate with an SMS service.
