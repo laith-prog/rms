@@ -34,7 +34,8 @@ from .permissions import IsCustomer, IsStaffMember
                 properties={
                     'success': openapi.Schema(type=openapi.TYPE_STRING, description="Success message"),
                     'code': openapi.Schema(type=openapi.TYPE_STRING, description="Verification code (only included in development)"),
-                    'phone': openapi.Schema(type=openapi.TYPE_STRING, description="Phone number")
+                    'phone': openapi.Schema(type=openapi.TYPE_STRING, description="Phone number"),
+                    'user_exists': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether a user with this phone number already exists")
                 }
             )
         ),
@@ -50,12 +51,16 @@ def send_verification_code(request):
     
     This endpoint generates a 6-digit verification code and sends it to the user's phone.
     In a production environment, this would integrate with an SMS service.
+    The response indicates whether a user with this phone number already exists.
     """
     serializer = PhoneVerificationSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     phone = serializer.validated_data['phone']
+    
+    # Check if user already exists
+    user_exists = User.objects.filter(phone=phone).exists()
     
     # Generate and send verification code
     verification = PhoneVerification.generate_code(phone)
@@ -66,7 +71,8 @@ def send_verification_code(request):
     return Response({
         'success': 'Verification code sent',
         'code': verification.code,  # Remove this in production
-        'phone': phone
+        'phone': phone,
+        'user_exists': user_exists
     }, status=status.HTTP_200_OK)
 
 
@@ -253,12 +259,19 @@ def forgot_password(request):
     
     This endpoint generates a 6-digit reset code and sends it to the user's phone.
     In a production environment, this would integrate with an SMS service.
+    The user must exist in the system to receive a reset code.
     """
     serializer = ForgotPasswordSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     phone = serializer.validated_data['phone']
+    
+    # Check if user exists
+    try:
+        user = User.objects.get(phone=phone)
+    except User.DoesNotExist:
+        return Response({'error': 'No account found with this phone number'}, status=status.HTTP_404_NOT_FOUND)
     
     # Generate and send reset code
     reset = PasswordReset.generate_code(phone)
