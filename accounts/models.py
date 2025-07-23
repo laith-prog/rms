@@ -17,6 +17,11 @@ class CustomUserManager(BaseUserManager):
         """
         if not phone:
             raise ValueError(_('The Phone number must be set'))
+        
+        # Ensure staff members have is_staff=True for Django admin
+        if extra_fields.get('is_staff_member', False):
+            extra_fields['is_staff'] = True
+            
         user = self.model(phone=phone, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -57,6 +62,12 @@ class User(AbstractUser):
     
     objects = CustomUserManager()
     
+    def save(self, *args, **kwargs):
+        # Ensure staff members have is_staff=True for Django admin
+        if self.is_staff_member and not self.is_staff:
+            self.is_staff = True
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         if self.first_name and self.last_name:
             return f"{self.first_name} {self.last_name} ({self.phone})"
@@ -68,18 +79,18 @@ class PhoneVerification(models.Model):
     Store verification codes for phone verification
     """
     phone = models.CharField(max_length=15)
-    code = models.CharField(max_length=6)
+    code = models.CharField(max_length=4)
     created_at = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
     
     @classmethod
     def generate_code(cls, phone):
-        """Generate a 6-digit verification code"""
+        """Generate a 4-digit verification code"""
         # Delete any existing unused codes for this phone
         cls.objects.filter(phone=phone, is_used=False).delete()
         
         # Generate a new code
-        code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        code = ''.join([str(random.randint(0, 9)) for _ in range(4)])
         verification = cls.objects.create(phone=phone, code=code)
         return verification
     
@@ -138,9 +149,48 @@ class StaffProfile(models.Model):
     restaurant = models.ForeignKey('restaurants.Restaurant', on_delete=models.CASCADE, related_name='staff')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_on_shift = models.BooleanField(default=False)
     
     def __str__(self):
         return f"{self.role} - {self.user.phone}"
+
+
+class StaffShift(models.Model):
+    """
+    Staff shift schedule and tracking
+    """
+    staff = models.ForeignKey(StaffProfile, on_delete=models.CASCADE, related_name='shifts')
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_shifts')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.staff} - {self.start_time.strftime('%Y-%m-%d %H:%M')} to {self.end_time.strftime('%H:%M')}"
+    
+    def save(self, *args, **kwargs):
+        """Update staff on_shift status when saving a shift"""
+        super().save(*args, **kwargs)
+        
+        # Check if this is a current shift
+        now = timezone.now()
+        if self.is_active and self.start_time <= now <= self.end_time:
+            self.staff.is_on_shift = True
+            self.staff.save()
+        elif self.staff.is_on_shift:
+            # Check if the staff member has any other active shifts
+            current_shifts = StaffShift.objects.filter(
+                staff=self.staff,
+                is_active=True,
+                start_time__lte=now,
+                end_time__gte=now
+            ).exclude(id=self.id)
+            
+            if not current_shifts.exists():
+                self.staff.is_on_shift = False
+                self.staff.save()
 
 
 class PasswordReset(models.Model):
@@ -148,18 +198,18 @@ class PasswordReset(models.Model):
     Store password reset codes
     """
     phone = models.CharField(max_length=15)
-    code = models.CharField(max_length=6)
+    code = models.CharField(max_length=4)
     created_at = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
     
     @classmethod
     def generate_code(cls, phone):
-        """Generate a 6-digit password reset code"""
+        """Generate a 4-digit password reset code"""
         # Delete any existing unused codes for this phone
         cls.objects.filter(phone=phone, is_used=False).delete()
         
         # Generate a new code
-        code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        code = ''.join([str(random.randint(0, 9)) for _ in range(4)])
         reset = cls.objects.create(phone=phone, code=code)
         return reset
     

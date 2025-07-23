@@ -56,7 +56,7 @@ class PhoneVerificationSerializer(serializers.ModelSerializer):
 
 class VerifyPhoneSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=15)
-    code = serializers.CharField(max_length=6)
+    code = serializers.CharField(max_length=4)
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(max_length=15)
@@ -117,7 +117,7 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 class VerifyResetCodeSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=15)
-    code = serializers.CharField(max_length=6)
+    code = serializers.CharField(max_length=4)
     
     def validate(self, data):
         try:
@@ -135,7 +135,7 @@ class VerifyResetCodeSerializer(serializers.Serializer):
 
 class ResetPasswordSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=15)
-    code = serializers.CharField(max_length=6)
+    code = serializers.CharField(max_length=4)
     new_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
     confirm_password = serializers.CharField(write_only=True, style={'input_type': 'password'})
     

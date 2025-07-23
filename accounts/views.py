@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponse
+from django.contrib.auth.views import LoginView
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -12,8 +13,11 @@ from drf_yasg import openapi
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
+from datetime import datetime
+from django.urls import reverse
+from django.contrib.auth import login as auth_login
 
-from .models import User, CustomerProfile, StaffProfile, PhoneVerification, PasswordReset
+from .models import User, CustomerProfile, StaffProfile, PhoneVerification, PasswordReset, StaffShift
 from .serializers import (
     PhoneVerificationSerializer, VerifyPhoneSerializer, UserRegistrationSerializer, 
     UserLoginSerializer, ForgotPasswordSerializer, VerifyResetCodeSerializer,
@@ -33,7 +37,7 @@ from .permissions import IsCustomer, IsStaffMember
                 type=openapi.TYPE_OBJECT,
                 properties={
                     'success': openapi.Schema(type=openapi.TYPE_STRING, description="Success message"),
-                    'code': openapi.Schema(type=openapi.TYPE_STRING, description="Verification code (only included in development)"),
+                    'code': openapi.Schema(type=openapi.TYPE_STRING, description="4-digit verification code (only included in development)"),
                     'phone': openapi.Schema(type=openapi.TYPE_STRING, description="Phone number")
                 }
             )
@@ -48,7 +52,7 @@ def send_verification_code(request):
     """
     Send a verification code to the provided phone number for new user registration
     
-    This endpoint generates a 6-digit verification code and sends it to the user's phone.
+    This endpoint generates a 4-digit verification code and sends it to the user's phone.
     In a production environment, this would integrate with an SMS service.
     The phone number must not already be registered with an existing account.
     """
@@ -256,7 +260,7 @@ def forgot_password(request):
     """
     Send a password reset code to an existing user's phone
     
-    This endpoint generates a 6-digit reset code and sends it to the user's phone.
+    This endpoint generates a 4-digit reset code and sends it to the user's phone.
     In a production environment, this would integrate with an SMS service.
     The user must exist in the system to receive a reset code.
     """
@@ -486,6 +490,197 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_staff_member(request):
+    """Create a new staff member (manager only)"""
+    user = request.user
+    
+    # Verify that the user is a manager
+    if not user.is_staff_member:
+        return Response({'error': 'Only staff members can access this endpoint'}, 
+                         status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        staff_profile = user.staff_profile
+        if staff_profile.role != 'manager':
+            return Response({'error': 'Only managers can create staff members'}, 
+                            status=status.HTTP_403_FORBIDDEN)
+        
+        restaurant = staff_profile.restaurant
+    except:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get staff details from request
+    phone = request.data.get('phone')
+    password = request.data.get('password')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    role = request.data.get('role')
+    
+    # Validate required fields
+    if not phone or not password or not first_name or not last_name or not role:
+        return Response({'error': 'Phone, password, first name, last name, and role are required'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate role
+    valid_roles = [r[0] for r in StaffProfile.ROLE_CHOICES]
+    if role not in valid_roles:
+        return Response({'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Managers can only create waiters, chefs, and employees (not other managers)
+    if role == 'manager':
+        return Response({'error': 'Managers cannot create other managers. Only superusers can create managers.'}, 
+                         status=status.HTTP_403_FORBIDDEN)
+    
+    # Check if user with this phone already exists
+    if User.objects.filter(phone=phone).exists():
+        return Response({'error': 'User with this phone number already exists'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create the user
+    new_user = User.objects.create_user(
+        phone=phone,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        is_staff_member=True,
+        is_phone_verified=True  # Auto-verify staff phone numbers
+    )
+    
+    # Create staff profile
+    staff_profile = StaffProfile.objects.create(
+        user=new_user,
+        role=role,
+        restaurant=restaurant
+    )
+    
+    return Response({
+        'success': f'{role.capitalize()} created successfully',
+        'staff_id': staff_profile.id,
+        'user_id': new_user.id
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_staff_shift(request):
+    """Create a new shift for a staff member (manager only)"""
+    user = request.user
+    
+    # Verify that the user is a manager
+    if not user.is_staff_member:
+        return Response({'error': 'Only staff members can access this endpoint'}, 
+                         status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        staff_profile = user.staff_profile
+        if staff_profile.role != 'manager':
+            return Response({'error': 'Only managers can create staff shifts'}, 
+                            status=status.HTTP_403_FORBIDDEN)
+        
+        restaurant = staff_profile.restaurant
+    except:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get shift details from request
+    staff_id = request.data.get('staff_id')
+    start_time = request.data.get('start_time')
+    end_time = request.data.get('end_time')
+    
+    # Validate required fields
+    if not staff_id or not start_time or not end_time:
+        return Response({'error': 'Staff ID, start time, and end time are required'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get the staff member
+    try:
+        staff_member = StaffProfile.objects.get(id=staff_id, restaurant=restaurant)
+    except StaffProfile.DoesNotExist:
+        return Response({'error': 'Staff member not found or not part of your restaurant'}, 
+                         status=status.HTTP_404_NOT_FOUND)
+    
+    # Parse datetime strings
+    try:
+        start_datetime = datetime.strptime(start_time, '%Y-%m-%d %H:%M')
+        end_datetime = datetime.strptime(end_time, '%Y-%m-%d %H:%M')
+    except ValueError:
+        return Response({'error': 'Invalid datetime format. Use YYYY-MM-DD HH:MM'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate start time is before end time
+    if start_datetime >= end_datetime:
+        return Response({'error': 'Start time must be before end time'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create the shift
+    shift = StaffShift.objects.create(
+        staff=staff_member,
+        start_time=start_datetime,
+        end_time=end_datetime,
+        created_by=user
+    )
+    
+    return Response({
+        'success': 'Shift created successfully',
+        'shift_id': shift.id,
+        'staff': f"{staff_member.user.first_name} {staff_member.user.last_name}",
+        'start_time': shift.start_time,
+        'end_time': shift.end_time
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def staff_list(request):
+    """Get all staff members for a restaurant (manager only)"""
+    user = request.user
+    
+    # Verify that the user is a manager
+    if not user.is_staff_member:
+        return Response({'error': 'Only staff members can access this endpoint'}, 
+                         status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        staff_profile = user.staff_profile
+        if staff_profile.role != 'manager':
+            return Response({'error': 'Only managers can view all staff members'}, 
+                            status=status.HTTP_403_FORBIDDEN)
+        
+        restaurant = staff_profile.restaurant
+    except:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get all staff for this restaurant
+    staff_members = StaffProfile.objects.filter(restaurant=restaurant)
+    
+    # Filter by role if provided
+    role = request.GET.get('role')
+    if role:
+        staff_members = staff_members.filter(role=role)
+    
+    # Filter by on-shift status if provided
+    on_shift = request.GET.get('on_shift')
+    if on_shift is not None:
+        is_on_shift = on_shift.lower() == 'true'
+        staff_members = staff_members.filter(is_on_shift=is_on_shift)
+    
+    data = []
+    for staff in staff_members:
+        data.append({
+            'id': staff.id,
+            'user_id': staff.user.id,
+            'name': f"{staff.user.first_name} {staff.user.last_name}",
+            'phone': staff.user.phone,
+            'role': staff.get_role_display(),
+            'is_on_shift': staff.is_on_shift,
+            'profile_image': request.build_absolute_uri(staff.profile_image.url) if staff.profile_image else None,
+        })
+    
+    return Response(data, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def direct_admin_login(request):
@@ -502,3 +697,87 @@ def direct_admin_login(request):
         return HttpResponse(f"Admin login successful! User: {user.phone}, Superuser: {user.is_superuser}, Staff: {user.is_staff}")
     else:
         return HttpResponse(f"Admin login failed. User exists: {User.objects.filter(phone=admin_phone).exists()}")
+
+
+class RoleBasedAdminLoginView(LoginView):
+    template_name = 'admin/login.html'
+    
+    def form_valid(self, form):
+        """Security check complete. Log the user in and redirect based on role."""
+        # Call the parent method to authenticate the user
+        auth_login(self.request, form.get_user())
+        
+        user = self.request.user
+        
+        # Automatically determine where to redirect based on user role
+        if user.is_superuser:
+            redirect_to = '/superadmin/'
+        elif user.is_staff_member:
+            try:
+                role = user.staff_profile.role
+                if role == 'manager':
+                    redirect_to = '/manager/'
+                elif role in ['waiter', 'chef']:
+                    redirect_to = '/staff/'
+                else:
+                    # Unknown staff role
+                    self.request.session['login_error'] = f'Unknown staff role: {role}'
+                    return HttpResponseRedirect(reverse('admin:login'))
+            except:
+                self.request.session['login_error'] = 'Staff profile not found.'
+                return HttpResponseRedirect(reverse('admin:login'))
+        else:
+            # User doesn't have admin privileges
+            self.request.session['login_error'] = 'You do not have admin privileges.'
+            return HttpResponseRedirect(reverse('admin:login'))
+        
+        # Redirect to the appropriate admin site
+        return HttpResponseRedirect(redirect_to)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def fix_manager_permissions(request):
+    """
+    Direct fix for manager permissions - use only for troubleshooting
+    """
+    from django.contrib.auth.models import Permission
+    from django.contrib.contenttypes.models import ContentType
+    from restaurants.models import MenuItem, Category, Table, Reservation, Review, Restaurant, RestaurantImage, ReservationStatusUpdate
+    from orders.models import Order, OrderItem, OrderStatusUpdate
+    
+    # Find all manager users
+    managers = User.objects.filter(is_staff_member=True, staff_profile__role='manager')
+    fixed_count = 0
+    
+    for user in managers:
+        # Ensure user is marked as staff in Django's system
+        if not user.is_staff:
+            user.is_staff = True
+            user.save()
+        
+        # Grant all permissions for relevant models
+        all_models = [
+            MenuItem, Category, Table, Reservation, Order, Review, 
+            RestaurantImage, ReservationStatusUpdate, OrderItem, OrderStatusUpdate
+        ]
+        
+        # Add view-only permission for Restaurant model
+        restaurant_content_type = ContentType.objects.get_for_model(Restaurant)
+        view_perm = Permission.objects.get(content_type=restaurant_content_type, codename='view_restaurant')
+        user.user_permissions.add(view_perm)
+        
+        # Add all permissions for other models
+        for model_class in all_models:
+            content_type = ContentType.objects.get_for_model(model_class)
+            for action in ['view', 'change', 'add', 'delete']:
+                perm_codename = f'{action}_{model_class._meta.model_name}'
+                try:
+                    perm = Permission.objects.get(content_type=content_type, codename=perm_codename)
+                    user.user_permissions.add(perm)
+                except Permission.DoesNotExist:
+                    continue
+        
+        fixed_count += 1
+    
+    return HttpResponse(f"Fixed permissions for {fixed_count} manager(s). Please try logging in again.")
