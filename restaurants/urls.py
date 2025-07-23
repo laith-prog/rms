@@ -17,4 +17,22 @@ urlpatterns = [
     path('reservations/', views.user_reservations, name='user_reservations'),
     path('reservations/<int:reservation_id>/', views.reservation_detail, name='reservation_detail'),
     path('reservations/<int:reservation_id>/cancel/', views.cancel_reservation, name='cancel_reservation'),
+    path('reservations/<int:reservation_id>/update-status/', views.update_reservation_status, name='update_reservation_status'),
+    
+    # Manager dashboard endpoints
+    path('dashboard/', views.restaurant_dashboard, name='restaurant_dashboard'),
+    
+    # Admin endpoints (superuser only)
+    path('create-with-manager/', views.create_restaurant_with_manager, name='create_restaurant_with_manager'),
+    path('categories/create/', views.create_restaurant_category, name='create_restaurant_category'),
+    
+    # Manager endpoints
+    path('menu-items/create/', views.create_menu_item, name='create_menu_item'),
+    path('categories/add/', views.add_category_to_restaurant, name='add_category_to_restaurant'),
+    
+    # Staff endpoints (waiters and chefs)
+    path('staff/dashboard/', views.staff_dashboard, name='staff_dashboard'),
+    path('staff/shifts/', views.staff_shifts, name='staff_shifts'),
+    path('orders/<int:order_id>/update-status/', views.update_order_status, name='update_order_status'),
+    path('staff/analytics/', views.analytics_dashboard, name='analytics_dashboard'),
 ] 

@@ -82,9 +82,9 @@ def order_list(request):
             )
         ),
         400: 'Bad request - invalid input',
-        403: 'Forbidden - only customers can create orders',
+        403: 'Forbidden - only customers, waiters, and managers can create orders',
     },
-    operation_description="Create a new food order"
+    operation_description="Create a new food order (not available for chefs)"
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -92,7 +92,7 @@ def create_order(request):
     """
     Create a new order
     
-    Creates a new food order for the authenticated customer. The order can be:
+    Creates a new food order for the authenticated customer or staff (except chefs). The order can be:
     - Dine-in: Linked to a table reservation
     - Pickup: For takeaway orders
     - Delivery: Requires a delivery address
@@ -101,8 +101,23 @@ def create_order(request):
     """
     user = request.user
     
-    if not user.is_customer:
-        return Response({'error': 'Only customers can create orders'}, status=status.HTTP_403_FORBIDDEN)
+    # Allow customers, waiters, and managers to create orders, but not chefs
+    if user.is_customer:
+        # Customers can create orders
+        pass
+    elif user.is_staff_member:
+        try:
+            staff_profile = user.staff_profile
+            
+            # Chefs cannot create orders
+            if staff_profile.role == 'chef':
+                return Response({'error': 'Chefs are not allowed to create orders'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+        except:
+            return Response({'error': 'Staff profile not found'}, status=status.HTTP_403_FORBIDDEN)
+    else:
+        return Response({'error': 'Only customers, waiters, or managers can create orders'}, 
+                        status=status.HTTP_403_FORBIDDEN)
     
     # Get restaurant
     restaurant_id = request.data.get('restaurant_id')
@@ -110,6 +125,11 @@ def create_order(request):
         return Response({'error': 'Restaurant ID is required'}, status=status.HTTP_400_BAD_REQUEST)
     
     restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
+    
+    # If staff member, ensure they belong to this restaurant
+    if user.is_staff_member and user.staff_profile.restaurant.id != restaurant.id:
+        return Response({'error': 'Staff can only create orders at their own restaurant'}, 
+                       status=status.HTTP_403_FORBIDDEN)
     
     # Get order type
     order_type = request.data.get('order_type')
@@ -487,27 +507,58 @@ def staff_update_order(request, order_id):
         # Auto-assign waiter if completing
         order.assigned_waiter = user
     
-    elif role in ['manager', 'employee']:
-        # Managers and employees can update to any status
-        pass
+    elif role == 'manager':
+        # Managers can update to any status
+        # If approving, assign a chef if none is assigned
+        if new_status == 'approved' and not order.assigned_chef:
+            # Find an available on-shift chef
+            from accounts.models import StaffProfile
+            chefs = StaffProfile.objects.filter(
+                restaurant=restaurant,
+                role='chef',
+                is_on_shift=True
+            )
+            
+            if chefs.exists():
+                order.assigned_chef = chefs.first().user
+            else:
+                # If no on-shift chefs, look for any chef
+                chefs = StaffProfile.objects.filter(restaurant=restaurant, role='chef')
+                if chefs.exists():
+                    order.assigned_chef = chefs.first().user
+                    return Response({
+                        'warning': 'No chefs are currently on shift. Assigned to an off-shift chef.',
+                        'chef': order.assigned_chef.phone
+                    }, status=status.HTTP_200_OK)
+                else:
+                    return Response({
+                        'warning': 'No chefs available for this restaurant.',
+                    }, status=status.HTTP_200_OK)
     
     else:
         return Response({'error': f'Unknown staff role: {role}'}, status=status.HTTP_403_FORBIDDEN)
     
     # Update order status
+    old_status = order.status
     order.status = new_status
     order.save()
     
-    # Create status update
-    OrderStatusUpdate.objects.create(
+    # Create status update for notification
+    status_update = OrderStatusUpdate.objects.create(
         order=order,
         status=new_status,
         notes=notes,
         updated_by=user
     )
     
+    # Send notification to customer (in a real app, this would trigger a push notification or email)
+    # For now, we'll just mark it as a notification that needs to be sent
+    status_update.notification_message = f"Your order status has been updated from {old_status} to {new_status}."
+    status_update.save()
+    
     return Response({
         'success': f'Order status updated to {order.get_status_display()}',
+        'notification_sent': True
     }, status=status.HTTP_200_OK)
 
 

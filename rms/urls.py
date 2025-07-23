@@ -26,7 +26,8 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
-from accounts.views import CustomTokenObtainPairView
+from accounts.views import CustomTokenObtainPairView, RoleBasedAdminLoginView
+from restaurants.admin import superadmin_site, manager_site, staff_site
 
 # Swagger documentation setup
 schema_view = get_schema_view(
@@ -43,7 +44,11 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
+    path('admin/login/', RoleBasedAdminLoginView.as_view(), name='admin_login'),
     path('admin/', admin.site.urls),
+    path('superadmin/', superadmin_site.urls),
+    path('manager/', manager_site.urls),
+    path('staff/', staff_site.urls),
     
     # API endpoints
     path('api/accounts/', include('accounts.urls')),

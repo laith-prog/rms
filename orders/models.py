@@ -117,13 +117,15 @@ class OrderItem(models.Model):
 
 class OrderStatusUpdate(models.Model):
     """
-    Track status changes for an order
+    Tracks updates to order status
     """
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='status_updates')
     status = models.CharField(max_length=10, choices=Order.STATUS_CHOICES)
     notes = models.TextField(blank=True, null=True)
-    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='order_status_updates')
     created_at = models.DateTimeField(auto_now_add=True)
+    notification_message = models.TextField(blank=True, null=True)
+    is_notified = models.BooleanField(default=False)
     
     def __str__(self):
-        return f"Order #{self.order.id} - Status: {self.status} at {self.created_at}"
+        return f"{self.order} - {self.status} - {self.created_at}"

@@ -71,6 +71,7 @@ class MenuItem(models.Model):
     description = models.TextField(blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     image = models.ImageField(upload_to='menu_items/', blank=True, null=True)
+    food_category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='food_items')
     is_vegetarian = models.BooleanField(default=False)
     is_vegan = models.BooleanField(default=False)
     is_gluten_free = models.BooleanField(default=False)
@@ -124,6 +125,21 @@ class Reservation(models.Model):
     
     def __str__(self):
         return f"{self.customer} - {self.restaurant.name} - {self.reservation_date} {self.reservation_time}"
+
+
+class ReservationStatusUpdate(models.Model):
+    """
+    Tracks updates to reservation status for notifications
+    """
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='status_updates')
+    status = models.CharField(max_length=20, choices=Reservation.STATUS_CHOICES)
+    notes = models.TextField(blank=True, null=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='reservation_status_updates')
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_notified = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"{self.reservation} - {self.status} - {self.created_at}"
 
 
 class Review(models.Model):

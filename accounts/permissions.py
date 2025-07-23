@@ -38,4 +38,85 @@ class IsRestaurantStaff(BasePermission):
             staff_profile = request.user.staff_profile
             return staff_profile.restaurant == obj.restaurant
         except:
+            return False
+
+class IsSuperAdmin(BasePermission):
+    """
+    Permission to only allow superadmins to access the view.
+    Superadmins can only manage restaurants, managers and restaurant categories.
+    """
+    message = "You must be a superadmin to perform this action."
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.is_superuser
+
+
+class IsRestaurantManager(BasePermission):
+    """
+    Permission to only allow restaurant managers to access the view.
+    Managers can manage food items and food categories.
+    """
+    message = "You must be a restaurant manager to perform this action."
+
+    def has_permission(self, request, view):
+        if not (request.user.is_authenticated and request.user.is_staff_member):
+            return False
+        try:
+            return request.user.staff_profile.role == 'manager'
+        except:
+            return False
+    
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_staff_member:
+            return False
+        
+        try:
+            staff_profile = request.user.staff_profile
+            if staff_profile.role != 'manager':
+                return False
+                
+            # Check if the manager belongs to the restaurant
+            if hasattr(obj, 'restaurant'):
+                return staff_profile.restaurant == obj.restaurant
+            elif hasattr(obj, 'menu') and hasattr(obj.menu, 'restaurant'):
+                return staff_profile.restaurant == obj.menu.restaurant
+            return False
+        except:
+            return False
+
+
+class IsWaiterOrChef(BasePermission):
+    """
+    Permission to only allow waiters or chefs to access the view.
+    These roles can manage shifts, orders, reservations, tables, menu item reviews, etc.
+    """
+    message = "You must be a waiter or chef to perform this action."
+
+    def has_permission(self, request, view):
+        if not (request.user.is_authenticated and request.user.is_staff_member):
+            return False
+        try:
+            role = request.user.staff_profile.role
+            return role in ['waiter', 'chef']
+        except:
+            return False
+    
+    def has_object_permission(self, request, view, obj):
+        if not request.user.is_staff_member:
+            return False
+        
+        try:
+            staff_profile = request.user.staff_profile
+            if staff_profile.role not in ['waiter', 'chef']:
+                return False
+                
+            # Check if the staff member belongs to the restaurant
+            if hasattr(obj, 'restaurant'):
+                return staff_profile.restaurant == obj.restaurant
+            elif hasattr(obj, 'table') and hasattr(obj.table, 'restaurant'):
+                return staff_profile.restaurant == obj.table.restaurant
+            elif hasattr(obj, 'order') and hasattr(obj.order, 'restaurant'):
+                return staff_profile.restaurant == obj.order.restaurant
+            return False
+        except:
             return False 
