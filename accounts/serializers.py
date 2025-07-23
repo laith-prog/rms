@@ -20,6 +20,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['is_customer'] = user.is_customer
         token['is_staff_member'] = user.is_staff_member
         
+        # Add token version to allow invalidation after logout
+        from .models import TokenVersion
+        token['token_version'] = TokenVersion.get_version(user)
+        
         return token
         
     def validate(self, attrs):

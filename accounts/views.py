@@ -239,10 +239,16 @@ def logout_user(request):
     """
     Logout a user
     
-    Ends the user's current session.
+    Ends the user's current session and invalidates all existing JWT tokens.
     """
+    # Increment token version to invalidate all existing tokens
+    from .models import TokenVersion
+    TokenVersion.increment_version(request.user)
+    
+    # Also perform Django session logout
     logout(request)
-    return Response({'success': 'Logout successful'}, status=status.HTTP_200_OK)
+    
+    return Response({'success': 'Logout successful. All tokens have been invalidated.'}, status=status.HTTP_200_OK)
 
 
 @swagger_auto_schema(

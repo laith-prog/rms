@@ -233,3 +233,29 @@ class PasswordReset(models.Model):
     
     def __str__(self):
         return f"Password reset code for {self.phone}"
+
+
+class TokenVersion(models.Model):
+    """
+    Store token version for each user to invalidate tokens after logout
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='token_version')
+    version = models.IntegerField(default=0)
+    last_logout = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Token version for {self.user.phone}: {self.version}"
+    
+    @classmethod
+    def get_version(cls, user):
+        """Get the current token version for a user"""
+        token_version, created = cls.objects.get_or_create(user=user)
+        return token_version.version
+    
+    @classmethod
+    def increment_version(cls, user):
+        """Increment the token version for a user, invalidating all existing tokens"""
+        token_version, created = cls.objects.get_or_create(user=user)
+        token_version.version += 1
+        token_version.save()
+        return token_version.version
