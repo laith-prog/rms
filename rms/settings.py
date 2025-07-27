@@ -43,6 +43,8 @@ INSTALLED_APPS = [
 
     # Third party apps
     'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'drf_yasg',
     'corsheaders',  # Add CORS headers app
 
@@ -189,6 +191,9 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 
     'JTI_CLAIM': 'jti',
+    
+    # Check token blacklist on every request
+    'CHECK_BLACKLIST': True,
 }
 
 # Media files (User uploaded content)

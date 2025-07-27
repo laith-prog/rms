@@ -142,8 +142,9 @@ def register_user(request):
     
     user = serializer.save()
     
-    # Generate JWT tokens
-    refresh = RefreshToken.for_user(user)
+    # Generate JWT tokens using custom serializer
+    from .serializers import CustomTokenObtainPairSerializer
+    refresh = CustomTokenObtainPairSerializer.get_token(user)
     
     return Response({
         'success': 'User registered successfully',
@@ -186,8 +187,9 @@ def login_user(request):
     
     user = authenticate(request, phone=phone, password=password)
     if user:
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
+        # Generate JWT tokens using custom serializer
+        from .serializers import CustomTokenObtainPairSerializer
+        refresh = CustomTokenObtainPairSerializer.get_token(user)
         
         # Get profile data
         profile_data = {}
@@ -239,16 +241,59 @@ def logout_user(request):
     """
     Logout a user
     
-    Ends the user's current session and invalidates all existing JWT tokens.
+    Ends the user's current session and invalidates only the current JWT token.
     """
-    # Increment token version to invalidate all existing tokens
-    from .models import TokenVersion
-    TokenVersion.increment_version(request.user)
-    
-    # Also perform Django session logout
-    logout(request)
-    
-    return Response({'success': 'Logout successful. All tokens have been invalidated.'}, status=status.HTTP_200_OK)
+    # Get the token from the authorization header
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+        
+        try:
+            # Create a token object
+            from rest_framework_simplejwt.tokens import AccessToken, TokenError
+            
+            # Blacklist the token
+            from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+            
+            # Get token data
+            token_obj = AccessToken(token)
+            
+            # Convert exp timestamp to datetime
+            from datetime import datetime
+            import pytz
+            expires_at = datetime.fromtimestamp(token_obj['exp'], tz=pytz.UTC)
+            
+            # Find or create the outstanding token
+            outstanding_token, created = OutstandingToken.objects.get_or_create(
+                jti=token_obj['jti'],
+                defaults={
+                    'token': token,
+                    'user': request.user,
+                    'expires_at': expires_at
+                }
+            )
+            
+            # Check if the token is already blacklisted
+            if BlacklistedToken.objects.filter(token=outstanding_token).exists():
+                # Token is already blacklisted, so it's been used after logout
+                logout(request)
+                return Response({'error': 'Token already invalidated. Please login again.'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Blacklist the token
+            BlacklistedToken.objects.create(token=outstanding_token)
+            
+            # Also perform Django session logout
+            logout(request)
+            
+            return Response({'success': 'Logout successful. Your token has been invalidated.'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            # If there's an error, still log out the session
+            logout(request)
+            return Response({'success': 'Logged out of session, but token could not be invalidated.', 'error': str(e)}, status=status.HTTP_200_OK)
+    else:
+        # If no token is provided, just log out the session
+        logout(request)
+        return Response({'success': 'Logged out of session.'}, status=status.HTTP_200_OK)
 
 
 @swagger_auto_schema(

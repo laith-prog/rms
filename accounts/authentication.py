@@ -1,5 +1,6 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, AuthenticationFailed
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from .models import TokenVersion
 
 class VersionedJWTAuthentication(JWTAuthentication):
@@ -18,6 +19,17 @@ class VersionedJWTAuthentication(JWTAuthentication):
         
         # Check token version
         if user is not None:
+            # Check if token is blacklisted
+            jti = validated_token.get('jti', None)
+            if jti:
+                try:
+                    # Check if this token is in the blacklist
+                    outstanding_token = OutstandingToken.objects.get(jti=jti)
+                    if BlacklistedToken.objects.filter(token=outstanding_token).exists():
+                        raise AuthenticationFailed('Token is blacklisted. Please login again.')
+                except OutstandingToken.DoesNotExist:
+                    pass  # Token not in database, continue with other checks
+            
             # Get token version from the token
             token_version = validated_token.get('token_version', None)
             

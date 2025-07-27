@@ -24,6 +24,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         from .models import TokenVersion
         token['token_version'] = TokenVersion.get_version(user)
         
+        # We don't need to manually save tokens to the database
+        # This is now handled by the SIMPLE_JWT settings
+        
         return token
         
     def validate(self, attrs):

@@ -240,7 +240,7 @@ class ManagerMenuItemAdmin(admin.ModelAdmin):
     list_display = ('name', 'restaurant', 'food_category', 'price', 'is_active', 'is_vegetarian', 'is_vegan')
     list_filter = ('is_active', 'food_category', 'is_vegetarian', 'is_vegan', 'is_gluten_free', 'contains_nuts', 'contains_dairy', 'is_spicy')
     search_fields = ('name', 'description')
-    
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         # Only show menu items for the manager's restaurant
@@ -327,7 +327,7 @@ class ManagerTableAdmin(admin.ModelAdmin):
     list_display = ('restaurant', 'table_number', 'capacity', 'is_active', 'is_reserved')
     list_filter = ('is_active', 'is_reserved')
     search_fields = ('table_number',)
-    
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         # Only show tables for the manager's restaurant
