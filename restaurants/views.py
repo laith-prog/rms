@@ -34,16 +34,7 @@ from orders.models import Order, OrderItem, OrderStatusUpdate
                         'name': openapi.Schema(type=openapi.TYPE_STRING),
                         'logo': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
                         'average_rating': openapi.Schema(type=openapi.TYPE_NUMBER),
-                        'categories': openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(
-                                type=openapi.TYPE_OBJECT,
-                                properties={
-                                    'id': openapi.Schema(type=openapi.TYPE_INTEGER),
-                                    'name': openapi.Schema(type=openapi.TYPE_STRING),
-                                }
-                            )
-                        ),
+                        'category': openapi.Schema(type=openapi.TYPE_STRING),
                         'address': openapi.Schema(type=openapi.TYPE_STRING),
                     }
                 )
@@ -83,12 +74,15 @@ def restaurant_list(request):
     # Basic restaurant information for listing
     data = []
     for restaurant in restaurants:
+        # Get primary category as string
+        primary_category = restaurant.categories.first().name if restaurant.categories.exists() else ""
+        
         data.append({
             'id': restaurant.id,
             'name': restaurant.name,
             'logo': request.build_absolute_uri(restaurant.logo.url) if restaurant.logo else None,
             'average_rating': restaurant.average_rating,
-            'categories': [{'id': cat.id, 'name': cat.name} for cat in restaurant.categories.all()],
+            'category': primary_category,
             'address': restaurant.address,
         })
     
@@ -128,6 +122,9 @@ def restaurant_detail(request, restaurant_id):
             'caption': img.caption
         })
     
+    # Get primary category as string
+    primary_category = restaurant.categories.first().name if restaurant.categories.exists() else ""
+    
     data = {
         'id': restaurant.id,
         'name': restaurant.name,
@@ -140,7 +137,7 @@ def restaurant_detail(request, restaurant_id):
         'opening_time': restaurant.opening_time,
         'closing_time': restaurant.closing_time,
         'average_rating': restaurant.average_rating,
-        'categories': [{'id': cat.id, 'name': cat.name} for cat in restaurant.categories.all()],
+        'category': primary_category,  # Return primary category as string
         'images': images,
         'services': {
             'dine_in': restaurant.offers_dine_in,

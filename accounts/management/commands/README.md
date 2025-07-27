@@ -10,7 +10,7 @@ This Django management command populates the database with test data for develop
    - Managers (1 per restaurant)
    - Staff (2 waiters and 2 chefs per restaurant)
    - Categories (Appetizers, Main Course, Desserts, Drinks)
-   - Menu items (5 items per category)
+   - Menu items (20 items per restaurant)
    - Tables (10 tables per restaurant)
 4. **Orders** - 20 sample orders with order items
 
@@ -19,12 +19,17 @@ This Django management command populates the database with test data for develop
 Run the following command to populate the database:
 
 ```bash
+# Clear all data (except superusers) and create new test data
 python manage.py seed_data
+
+# Preserve existing user data while refreshing restaurant and order data
+python manage.py seed_data --preserve-users
 ```
 
 ## Notes:
 
-- The seeder uses `get_or_create` to avoid duplicating data when run multiple times
+- The seeder **clears existing data** before creating new data (except superusers)
+- Use the `--preserve-users` flag to keep existing user accounts
 - All users are created with verified phone numbers
 - Random data is generated for addresses, allergies, dietary preferences, etc.
 - Passwords:
