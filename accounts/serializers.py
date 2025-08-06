@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import CustomerProfile, PhoneVerification, PasswordReset
+from .models import CustomerProfile, StaffProfile, PhoneVerification, PasswordReset
 from django.utils import timezone
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -192,4 +192,59 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
 class ProfileImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomerProfile
-        fields = ['profile_image'] 
+        fields = ['profile_image']
+
+
+class StaffProfileSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source='user.first_name')
+    last_name = serializers.CharField(source='user.last_name')
+    phone = serializers.CharField(source='user.phone', read_only=True)
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    restaurant_name = serializers.CharField(source='restaurant.name', read_only=True)
+    
+    class Meta:
+        model = StaffProfile
+        fields = [
+            'id', 'first_name', 'last_name', 'phone', 'role', 'role_display',
+            'restaurant_name', 'profile_image', 'is_on_shift', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'role', 'restaurant_name', 'is_on_shift', 'created_at', 'updated_at']
+    
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        
+        # Update user fields
+        user = instance.user
+        if 'first_name' in user_data:
+            user.first_name = user_data['first_name']
+        if 'last_name' in user_data:
+            user.last_name = user_data['last_name']
+        user.save()
+        
+        # Update profile fields
+        return super().update(instance, validated_data)
+
+
+class StaffLoginSerializer(serializers.Serializer):
+    """
+    Serializer for staff login with additional validation
+    """
+    phone = serializers.CharField(max_length=15)
+    password = serializers.CharField(style={'input_type': 'password'})
+    
+    def validate(self, data):
+        phone = data.get('phone')
+        
+        # Check if user exists and is a staff member
+        try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.get(phone=phone)
+            
+            if not user.is_staff_member:
+                raise serializers.ValidationError("This account is not authorized for staff access.")
+                
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Invalid phone number.")
+            
+        return data 

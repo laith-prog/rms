@@ -22,7 +22,7 @@ from .serializers import (
     PhoneVerificationSerializer, VerifyPhoneSerializer, UserRegistrationSerializer, 
     UserLoginSerializer, ForgotPasswordSerializer, VerifyResetCodeSerializer,
     ResetPasswordSerializer, CustomerProfileSerializer, ProfileImageSerializer,
-    CustomTokenObtainPairSerializer
+    CustomTokenObtainPairSerializer, StaffProfileSerializer, StaffLoginSerializer
 )
 from .permissions import IsCustomer, IsStaffMember
 
@@ -832,3 +832,431 @@ def fix_manager_permissions(request):
         fixed_count += 1
     
     return HttpResponse(f"Fixed permissions for {fixed_count} manager(s). Please try logging in again.")
+
+
+@swagger_auto_schema(
+    method='post',
+    request_body=StaffLoginSerializer,
+    responses={
+        200: 'Staff login successful',
+        401: 'Invalid credentials',
+        403: 'Not a staff member',
+    },
+    operation_description="Login endpoint specifically for staff members (chef, waiter, manager, employee)"
+)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def staff_login(request):
+    """
+    Staff-specific login endpoint with role-based response data
+    
+    Authenticates staff members and returns role-specific information including:
+    - Staff profile details (role, restaurant, shift status)
+    - Restaurant information
+    - Role-specific permissions and capabilities
+    """
+    serializer = StaffLoginSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    phone = serializer.validated_data['phone']
+    password = serializer.validated_data['password']
+    
+    user = authenticate(request, phone=phone, password=password)
+    if not user:
+        return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Check if user is a staff member
+    if not user.is_staff_member:
+        return Response({'error': 'Access denied. This endpoint is for staff members only.'}, 
+                       status=status.HTTP_403_FORBIDDEN)
+    
+    # Generate JWT tokens
+    from .serializers import CustomTokenObtainPairSerializer
+    refresh = CustomTokenObtainPairSerializer.get_token(user)
+    
+    # Get staff profile data
+    try:
+        staff_profile = user.staff_profile
+        restaurant = staff_profile.restaurant
+        
+        # Build staff-specific response data
+        staff_data = {
+            'id': staff_profile.id,
+            'role': staff_profile.role,
+            'is_on_shift': staff_profile.is_on_shift,
+            'restaurant': {
+                'id': restaurant.id,
+                'name': restaurant.name,
+                'address': restaurant.address,
+                'phone': restaurant.phone,
+            }
+        }
+        
+        # Add role-specific capabilities
+        role_capabilities = get_role_capabilities(staff_profile.role)
+        staff_data['capabilities'] = role_capabilities
+        
+        # Get current shift information if on shift
+        if staff_profile.is_on_shift:
+            from django.utils import timezone
+            now = timezone.now()
+            current_shift = StaffShift.objects.filter(
+                staff=staff_profile,
+                is_active=True,
+                start_time__lte=now,
+                end_time__gte=now
+            ).first()
+            
+            if current_shift:
+                staff_data['current_shift'] = {
+                    'id': current_shift.id,
+                    'start_time': current_shift.start_time.isoformat(),
+                    'end_time': current_shift.end_time.isoformat(),
+                }
+        
+        # Add profile image if exists
+        if staff_profile.profile_image:
+            staff_data['profile_image'] = request.build_absolute_uri(staff_profile.profile_image.url)
+        
+    except StaffProfile.DoesNotExist:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    return Response({
+        'success': 'Staff login successful',
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+        'access_token_lifetime': settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds() // 60,
+        'user': {
+            'id': user.id,
+            'phone': user.phone,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'is_staff_member': True,
+            'staff_profile': staff_data
+        }
+    }, status=status.HTTP_200_OK)
+
+
+def get_role_capabilities(role):
+    """
+    Return role-specific capabilities and permissions
+    """
+    capabilities = {
+        'chef': {
+            'can_view_orders': True,
+            'can_update_order_status': True,
+            'can_view_menu': True,
+            'can_manage_kitchen': True,
+            'can_view_reservations': False,
+            'can_manage_tables': False,
+            'can_create_staff': False,
+            'can_manage_menu': False,
+        },
+        'waiter': {
+            'can_view_orders': True,
+            'can_update_order_status': True,
+            'can_view_menu': True,
+            'can_manage_kitchen': False,
+            'can_view_reservations': True,
+            'can_manage_tables': True,
+            'can_create_staff': False,
+            'can_manage_menu': False,
+        },
+        'manager': {
+            'can_view_orders': True,
+            'can_update_order_status': True,
+            'can_view_menu': True,
+            'can_manage_kitchen': True,
+            'can_view_reservations': True,
+            'can_manage_tables': True,
+            'can_create_staff': True,
+            'can_manage_menu': True,
+        },
+        'employee': {
+            'can_view_orders': True,
+            'can_update_order_status': False,
+            'can_view_menu': True,
+            'can_manage_kitchen': False,
+            'can_view_reservations': True,
+            'can_manage_tables': False,
+            'can_create_staff': False,
+            'can_manage_menu': False,
+        }
+    }
+    
+    return capabilities.get(role, {})
+
+
+@swagger_auto_schema(
+    method='get',
+    responses={
+        200: 'Staff profile retrieved successfully',
+        403: 'Not a staff member',
+    },
+    operation_description="Get current staff member's profile information"
+)
+@api_view(['GET'])
+@permission_classes([IsStaffMember])
+def staff_profile(request):
+    """
+    Get current staff member's profile information
+    
+    Returns detailed staff profile including role, restaurant, shift status,
+    and role-specific capabilities.
+    """
+    user = request.user
+    
+    try:
+        staff_profile = user.staff_profile
+        restaurant = staff_profile.restaurant
+        
+        # Get shift history (last 10 shifts)
+        recent_shifts = StaffShift.objects.filter(
+            staff=staff_profile
+        ).order_by('-created_at')[:10]
+        
+        shifts_data = []
+        for shift in recent_shifts:
+            shifts_data.append({
+                'id': shift.id,
+                'start_time': shift.start_time.isoformat(),
+                'end_time': shift.end_time.isoformat(),
+                'is_active': shift.is_active,
+                'created_at': shift.created_at.isoformat(),
+            })
+        
+        # Build response data
+        profile_data = {
+            'id': staff_profile.id,
+            'role': staff_profile.role,
+            'is_on_shift': staff_profile.is_on_shift,
+            'created_at': staff_profile.created_at.isoformat(),
+            'updated_at': staff_profile.updated_at.isoformat(),
+            'restaurant': {
+                'id': restaurant.id,
+                'name': restaurant.name,
+                'address': restaurant.address,
+                'phone': restaurant.phone,
+            },
+            'recent_shifts': shifts_data,
+            'capabilities': get_role_capabilities(staff_profile.role)
+        }
+        
+        # Add profile image if exists
+        if staff_profile.profile_image:
+            profile_data['profile_image'] = request.build_absolute_uri(staff_profile.profile_image.url)
+        
+        return Response({
+            'user': {
+                'id': user.id,
+                'phone': user.phone,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'is_phone_verified': user.is_phone_verified,
+            },
+            'staff_profile': profile_data
+        }, status=status.HTTP_200_OK)
+        
+    except StaffProfile.DoesNotExist:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(
+    method='post',
+    responses={
+        200: 'Shift status updated successfully',
+        400: 'Invalid request or no active shift found',
+        403: 'Not a staff member',
+    },
+    operation_description="Clock in/out for staff members"
+)
+@api_view(['POST'])
+@permission_classes([IsStaffMember])
+def staff_clock_toggle(request):
+    """
+    Toggle staff member's shift status (clock in/out)
+    
+    This endpoint allows staff members to clock in or out of their shifts.
+    It automatically detects if they should be clocking in or out based on
+    their current shift status and active shifts.
+    """
+    user = request.user
+    
+    try:
+        staff_profile = user.staff_profile
+        from django.utils import timezone
+        now = timezone.now()
+        
+        # Check if staff member is currently on shift
+        if staff_profile.is_on_shift:
+            # Try to clock out - find active shift
+            active_shift = StaffShift.objects.filter(
+                staff=staff_profile,
+                is_active=True,
+                start_time__lte=now,
+                end_time__gte=now
+            ).first()
+            
+            if active_shift:
+                # End the shift early
+                active_shift.end_time = now
+                active_shift.save()
+                
+                # Update staff shift status
+                staff_profile.is_on_shift = False
+                staff_profile.save()
+                
+                return Response({
+                    'success': 'Clocked out successfully',
+                    'action': 'clock_out',
+                    'shift_ended_at': now.isoformat(),
+                    'is_on_shift': False
+                }, status=status.HTTP_200_OK)
+            else:
+                # No active shift found, just update status
+                staff_profile.is_on_shift = False
+                staff_profile.save()
+                
+                return Response({
+                    'success': 'Shift status updated to off',
+                    'action': 'status_update',
+                    'is_on_shift': False
+                }, status=status.HTTP_200_OK)
+        else:
+            # Try to clock in - check if there's a scheduled shift
+            scheduled_shift = StaffShift.objects.filter(
+                staff=staff_profile,
+                is_active=True,
+                start_time__lte=now,
+                end_time__gte=now
+            ).first()
+            
+            if scheduled_shift:
+                # Clock in to scheduled shift
+                staff_profile.is_on_shift = True
+                staff_profile.save()
+                
+                return Response({
+                    'success': 'Clocked in successfully',
+                    'action': 'clock_in',
+                    'shift_started_at': now.isoformat(),
+                    'shift_ends_at': scheduled_shift.end_time.isoformat(),
+                    'is_on_shift': True
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'No scheduled shift found for current time. Please contact your manager.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+    except StaffProfile.DoesNotExist:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(
+    method='put',
+    request_body=StaffProfileSerializer,
+    responses={
+        200: 'Staff profile updated successfully',
+        400: 'Invalid input data',
+        403: 'Not a staff member',
+    },
+    operation_description="Update staff member's profile information"
+)
+@api_view(['PUT'])
+@permission_classes([IsStaffMember])
+@parser_classes([MultiPartParser, FormParser])
+def update_staff_profile(request):
+    """
+    Update staff member's profile information
+    
+    Allows staff members to update their personal information including
+    name and profile image. Role and restaurant cannot be changed.
+    """
+    user = request.user
+    
+    try:
+        staff_profile = user.staff_profile
+        serializer = StaffProfileSerializer(staff_profile, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            
+            # Return updated profile data
+            return Response({
+                'success': 'Profile updated successfully',
+                'staff_profile': serializer.data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+    except StaffProfile.DoesNotExist:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(
+    method='get',
+    responses={
+        200: 'Staff shifts retrieved successfully',
+        403: 'Not a staff member',
+    },
+    operation_description="Get staff member's shift schedule"
+)
+@api_view(['GET'])
+@permission_classes([IsStaffMember])
+def staff_shifts(request):
+    """
+    Get staff member's shift schedule
+    
+    Returns upcoming and recent shifts for the authenticated staff member.
+    """
+    user = request.user
+    
+    try:
+        staff_profile = user.staff_profile
+        from django.utils import timezone
+        now = timezone.now()
+        
+        # Get upcoming shifts (next 7 days)
+        upcoming_shifts = StaffShift.objects.filter(
+            staff=staff_profile,
+            is_active=True,
+            start_time__gte=now,
+            start_time__lte=now + timezone.timedelta(days=7)
+        ).order_by('start_time')
+        
+        # Get recent shifts (last 7 days)
+        recent_shifts = StaffShift.objects.filter(
+            staff=staff_profile,
+            end_time__gte=now - timezone.timedelta(days=7),
+            end_time__lt=now
+        ).order_by('-end_time')
+        
+        # Get current shift if any
+        current_shift = StaffShift.objects.filter(
+            staff=staff_profile,
+            is_active=True,
+            start_time__lte=now,
+            end_time__gte=now
+        ).first()
+        
+        def serialize_shift(shift):
+            return {
+                'id': shift.id,
+                'start_time': shift.start_time.isoformat(),
+                'end_time': shift.end_time.isoformat(),
+                'is_active': shift.is_active,
+                'created_at': shift.created_at.isoformat(),
+            }
+        
+        response_data = {
+            'current_shift': serialize_shift(current_shift) if current_shift else None,
+            'upcoming_shifts': [serialize_shift(shift) for shift in upcoming_shifts],
+            'recent_shifts': [serialize_shift(shift) for shift in recent_shifts],
+            'is_on_shift': staff_profile.is_on_shift,
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except StaffProfile.DoesNotExist:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_400_BAD_REQUEST)

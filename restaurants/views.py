@@ -1169,3 +1169,567 @@ def analytics_dashboard(request):
         'popular_items': popular_items_data,
         'daily_sales': daily_sales,
     }, status=status.HTTP_200_OK)
+
+
+# Enhanced Reservation System Views
+
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('restaurant_id', openapi.IN_PATH, description="Restaurant ID", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('party_size', openapi.IN_QUERY, description="Number of guests", type=openapi.TYPE_INTEGER),
+    ],
+    responses={
+        200: openapi.Response(
+            description="Available dates for reservation",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'available_dates': openapi.Schema(
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'date': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE),
+                                'available_slots': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            }
+                        )
+                    )
+                }
+            )
+        )
+    },
+    operation_description="Get available dates for reservation based on party size"
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def available_dates(request, restaurant_id):
+    """
+    Get available dates for reservation based on party size.
+    Shows dates for the next 30 days with available time slots.
+    """
+    restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
+    
+    # Get party size (no limits as requested)
+    party_size = int(request.GET.get('party_size', 1))
+    
+    # Get available dates for the next 30 days
+    available_dates = []
+    today = timezone.now().date()
+    
+    for i in range(30):  # Next 30 days
+        check_date = today + timedelta(days=i)
+        
+        # Skip past dates
+        if check_date < today:
+            continue
+            
+        # Find tables that can accommodate the party size
+        suitable_tables = Table.objects.filter(
+            restaurant=restaurant,
+            is_active=True,
+            capacity__gte=party_size
+        )
+        
+        if not suitable_tables.exists():
+            continue
+            
+        # Check how many time slots are available for this date
+        available_slots = 0
+        
+        # Generate time slots from opening to closing time (every hour)
+        opening_time = restaurant.opening_time
+        closing_time = restaurant.closing_time
+        
+        # Convert times to datetime for easier calculation
+        current_time = datetime.combine(check_date, opening_time)
+        end_time = datetime.combine(check_date, closing_time)
+        
+        while current_time < end_time:
+            slot_time = current_time.time()
+            
+            # Check if any table is available at this time
+            reserved_tables = Reservation.objects.filter(
+                restaurant=restaurant,
+                reservation_date=check_date,
+                reservation_time__lte=slot_time,
+                status__in=['pending', 'confirmed']
+            ).values_list('table_id', flat=True)
+            
+            available_tables_at_time = suitable_tables.exclude(id__in=reserved_tables)
+            
+            if available_tables_at_time.exists():
+                available_slots += 1
+                
+            current_time += timedelta(hours=1)
+        
+        if available_slots > 0:
+            available_dates.append({
+                'date': check_date.strftime('%Y-%m-%d'),
+                'available_slots': available_slots,
+                'day_name': check_date.strftime('%A')
+            })
+    
+    return Response({
+        'available_dates': available_dates,
+        'restaurant': {
+            'id': restaurant.id,
+            'name': restaurant.name,
+            'opening_time': restaurant.opening_time.strftime('%H:%M'),
+            'closing_time': restaurant.closing_time.strftime('%H:%M'),
+        }
+    }, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('restaurant_id', openapi.IN_PATH, description="Restaurant ID", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('date', openapi.IN_QUERY, description="Date (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+        openapi.Parameter('party_size', openapi.IN_QUERY, description="Number of guests", type=openapi.TYPE_INTEGER),
+    ],
+    responses={
+        200: openapi.Response(
+            description="Available time slots for the selected date",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'available_times': openapi.Schema(
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'time': openapi.Schema(type=openapi.TYPE_STRING),
+                                'available_tables': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            }
+                        )
+                    )
+                }
+            )
+        )
+    },
+    operation_description="Get available time slots for a specific date"
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def available_times(request, restaurant_id):
+    """
+    Get available time slots for a specific date and party size.
+    """
+    restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
+    
+    # Get parameters
+    date_str = request.GET.get('date')
+    party_size = int(request.GET.get('party_size', 1))
+    
+    if not date_str:
+        return Response({'error': 'Date is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        reservation_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return Response({'error': 'Invalid date format, use YYYY-MM-DD'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if date is in the past
+    if reservation_date < timezone.now().date():
+        return Response({'error': 'Cannot check availability for past dates'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find tables that can accommodate the party size
+    suitable_tables = Table.objects.filter(
+        restaurant=restaurant,
+        is_active=True,
+        capacity__gte=party_size
+    )
+    
+    if not suitable_tables.exists():
+        return Response({
+            'available_times': [],
+            'message': f'No tables available for {party_size} guests'
+        }, status=status.HTTP_200_OK)
+    
+    # Generate time slots
+    available_times = []
+    opening_time = restaurant.opening_time
+    closing_time = restaurant.closing_time
+    
+    # Convert times to datetime for easier calculation
+    current_time = datetime.combine(reservation_date, opening_time)
+    end_time = datetime.combine(reservation_date, closing_time)
+    
+    while current_time < end_time:
+        slot_time = current_time.time()
+        
+        # Check available tables at this time
+        reserved_tables = Reservation.objects.filter(
+            restaurant=restaurant,
+            reservation_date=reservation_date,
+            reservation_time__lte=slot_time,
+            status__in=['pending', 'confirmed']
+        ).values_list('table_id', flat=True)
+        
+        available_tables_at_time = suitable_tables.exclude(id__in=reserved_tables)
+        available_count = available_tables_at_time.count()
+        
+        if available_count > 0:
+            available_times.append({
+                'time': slot_time.strftime('%H:%M'),
+                'available_tables': available_count,
+                'display_time': slot_time.strftime('%I:%M %p')
+            })
+            
+        current_time += timedelta(hours=1)
+    
+    return Response({
+        'available_times': available_times,
+        'date': reservation_date.strftime('%Y-%m-%d'),
+        'party_size': party_size,
+        'restaurant': {
+            'id': restaurant.id,
+            'name': restaurant.name,
+        }
+    }, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('restaurant_id', openapi.IN_PATH, description="Restaurant ID", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('date', openapi.IN_QUERY, description="Date (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+        openapi.Parameter('time', openapi.IN_QUERY, description="Time (HH:MM)", type=openapi.TYPE_STRING),
+        openapi.Parameter('party_size', openapi.IN_QUERY, description="Number of guests", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('duration', openapi.IN_QUERY, description="Duration in hours (minimum 1)", type=openapi.TYPE_INTEGER),
+    ],
+    responses={
+        200: openapi.Response(
+            description="Available tables grouped by floor",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'floors': openapi.Schema(
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'floor': openapi.Schema(type=openapi.TYPE_STRING),
+                                'floor_display': openapi.Schema(type=openapi.TYPE_STRING),
+                                'tables': openapi.Schema(
+                                    type=openapi.TYPE_ARRAY,
+                                    items=openapi.Schema(
+                                        type=openapi.TYPE_OBJECT,
+                                        properties={
+                                            'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                            'table_number': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'capacity': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                        }
+                                    )
+                                )
+                            }
+                        )
+                    )
+                }
+            )
+        )
+    },
+    operation_description="Get available tables grouped by floor for specific date, time, and duration"
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def available_tables_by_floor(request, restaurant_id):
+    """
+    Get available tables grouped by floor for a specific date, time, party size, and duration.
+    """
+    restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
+    
+    # Get parameters
+    date_str = request.GET.get('date')
+    time_str = request.GET.get('time')
+    party_size = int(request.GET.get('party_size', 1))
+    duration = int(request.GET.get('duration', 1))  # Default 1 hour
+    
+    # Validate required parameters
+    if not date_str or not time_str:
+        return Response({'error': 'Date and time are required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate minimum duration
+    if duration < 1:
+        return Response({'error': 'Minimum duration is 1 hour'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        reservation_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        reservation_time = datetime.strptime(time_str, '%H:%M').time()
+    except ValueError:
+        return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if date/time is in the past
+    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    if reservation_datetime < timezone.now():
+        return Response({'error': 'Cannot check availability for past date/time'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Calculate end time for the reservation
+    end_datetime = reservation_datetime + timedelta(hours=duration)
+    end_time = end_datetime.time()
+    
+    # Find tables that can accommodate the party size
+    suitable_tables = Table.objects.filter(
+        restaurant=restaurant,
+        is_active=True,
+        capacity__gte=party_size
+    )
+    
+    # Find tables that are NOT reserved during the requested time period
+    conflicting_reservations = Reservation.objects.filter(
+        restaurant=restaurant,
+        reservation_date=reservation_date,
+        status__in=['pending', 'confirmed'],
+        table__in=suitable_tables
+    ).filter(
+        # Check for time overlap
+        reservation_time__lt=end_time,
+        # Using the end_time property we added to the model
+    )
+    
+    # Get tables that have conflicting reservations
+    reserved_table_ids = []
+    for reservation in conflicting_reservations:
+        # Check if there's actual time overlap
+        existing_end_time = reservation.end_time
+        if (reservation.reservation_time < end_time and 
+            existing_end_time > reservation_time):
+            reserved_table_ids.append(reservation.table_id)
+    
+    # Get available tables
+    available_tables = suitable_tables.exclude(id__in=reserved_table_ids)
+    
+    # Group tables by floor
+    floors_data = {}
+    for table in available_tables:
+        floor_key = table.floor
+        floor_display = table.get_floor_display()
+        
+        if floor_key not in floors_data:
+            floors_data[floor_key] = {
+                'floor': floor_key,
+                'floor_display': floor_display,
+                'tables': []
+            }
+        
+        floors_data[floor_key]['tables'].append({
+            'id': table.id,
+            'table_number': table.table_number,
+            'capacity': table.capacity,
+        })
+    
+    # Convert to list and sort by floor order
+    floor_order = ['ground', 'first', 'second', 'third', 'fourth', 'rooftop']
+    floors_list = []
+    
+    for floor_key in floor_order:
+        if floor_key in floors_data:
+            floors_list.append(floors_data[floor_key])
+    
+    # Add any floors not in the standard order
+    for floor_key, floor_data in floors_data.items():
+        if floor_key not in floor_order:
+            floors_list.append(floor_data)
+    
+    return Response({
+        'floors': floors_list,
+        'reservation_details': {
+            'date': reservation_date.strftime('%Y-%m-%d'),
+            'time': reservation_time.strftime('%H:%M'),
+            'duration': duration,
+            'party_size': party_size,
+            'end_time': end_time.strftime('%H:%M'),
+        },
+        'restaurant': {
+            'id': restaurant.id,
+            'name': restaurant.name,
+        }
+    }, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['table_id', 'party_size', 'date', 'time', 'duration'],
+        properties={
+            'table_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Selected table ID"),
+            'party_size': openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of guests"),
+            'date': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE, description="Reservation date (YYYY-MM-DD)"),
+            'time': openapi.Schema(type=openapi.TYPE_STRING, description="Reservation time (HH:MM)"),
+            'duration': openapi.Schema(type=openapi.TYPE_INTEGER, description="Duration in hours (minimum 1)"),
+            'special_requests': openapi.Schema(type=openapi.TYPE_STRING, description="Special requests (optional)"),
+        }
+    ),
+    responses={
+        201: openapi.Response(
+            description="Reservation created successfully",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'success': openapi.Schema(type=openapi.TYPE_STRING),
+                    'reservation': openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'status': openapi.Schema(type=openapi.TYPE_STRING),
+                            'date': openapi.Schema(type=openapi.TYPE_STRING),
+                            'time': openapi.Schema(type=openapi.TYPE_STRING),
+                            'duration': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'party_size': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'table': openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    'number': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'floor': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'capacity': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                }
+                            ),
+                        }
+                    ),
+                }
+            )
+        )
+    },
+    operation_description="Create a new reservation with enhanced features"
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_enhanced_reservation(request, restaurant_id):
+    """
+    Create a new reservation with enhanced features including duration and floor selection.
+    """
+    restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
+    user = request.user
+    
+    # Permission check (same as original)
+    if user.is_customer:
+        pass
+    elif user.is_staff_member:
+        try:
+            staff_profile = user.staff_profile
+            if staff_profile.restaurant.id != restaurant.id:
+                return Response({'error': 'Staff can only make reservations at their own restaurant'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+            if staff_profile.role == 'chef':
+                return Response({'error': 'Chefs are not allowed to make reservations'}, 
+                               status=status.HTTP_403_FORBIDDEN)
+        except:
+            return Response({'error': 'Staff profile not found'}, status=status.HTTP_403_FORBIDDEN)
+    else:
+        return Response({'error': 'Only customers, waiters, or managers can make reservations'}, 
+                        status=status.HTTP_403_FORBIDDEN)
+    
+    # Get and validate reservation details
+    table_id = request.data.get('table_id')
+    party_size = request.data.get('party_size')
+    date_str = request.data.get('date')
+    time_str = request.data.get('time')
+    duration = request.data.get('duration', 1)
+    special_requests = request.data.get('special_requests', '')
+    
+    # Validate required fields
+    if not all([table_id, party_size, date_str, time_str]):
+        return Response({'error': 'Table ID, party size, date, and time are required'}, 
+                        status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate duration
+    try:
+        duration = int(duration)
+        if duration < 1:
+            return Response({'error': 'Minimum duration is 1 hour'}, status=status.HTTP_400_BAD_REQUEST)
+    except (ValueError, TypeError):
+        return Response({'error': 'Duration must be a valid number'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get and validate table
+    table = get_object_or_404(Table, id=table_id, restaurant=restaurant, is_active=True)
+    
+    # Validate party size
+    try:
+        party_size = int(party_size)
+        if party_size < 1:
+            return Response({'error': 'Party size must be at least 1'}, status=status.HTTP_400_BAD_REQUEST)
+        if party_size > table.capacity:
+            return Response({'error': f'Table capacity ({table.capacity}) is not sufficient for party size ({party_size})'}, 
+                           status=status.HTTP_400_BAD_REQUEST)
+    except (ValueError, TypeError):
+        return Response({'error': 'Party size must be a valid number'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Parse and validate date/time
+    try:
+        reservation_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        reservation_time = datetime.strptime(time_str, '%H:%M').time()
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if date/time is in the past
+    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    if reservation_datetime < timezone.now():
+        return Response({'error': 'Cannot make reservation for past date/time'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Calculate end time
+    end_datetime = reservation_datetime + timedelta(hours=duration)
+    end_time = end_datetime.time()
+    
+    # Check for conflicting reservations
+    conflicting_reservations = Reservation.objects.filter(
+        table=table,
+        reservation_date=reservation_date,
+        status__in=['pending', 'confirmed']
+    )
+    
+    for existing_reservation in conflicting_reservations:
+        existing_end_time = existing_reservation.end_time
+        # Check for time overlap
+        if (reservation_time < existing_end_time and 
+            end_time > existing_reservation.reservation_time):
+            return Response({
+                'error': f'Table is already reserved from {existing_reservation.reservation_time.strftime("%H:%M")} to {existing_end_time.strftime("%H:%M")}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create the reservation
+    reservation = Reservation.objects.create(
+        customer=user,
+        restaurant=restaurant,
+        table=table,
+        party_size=party_size,
+        reservation_date=reservation_date,
+        reservation_time=reservation_time,
+        duration_hours=duration,
+        status='pending',
+        special_requests=special_requests
+    )
+    
+    # Auto-approve if the user is a manager
+    if user.is_staff_member and hasattr(user, 'staff_profile') and user.staff_profile.role == 'manager':
+        reservation.status = 'confirmed'
+        reservation.save()
+        
+        # Create notification for auto-approval
+        from .models import ReservationStatusUpdate
+        ReservationStatusUpdate.objects.create(
+            reservation=reservation,
+            status='confirmed',
+            notes='Auto-approved by manager',
+            updated_by=user
+        )
+    
+    return Response({
+        'success': 'Reservation created successfully',
+        'reservation': {
+            'id': reservation.id,
+            'status': reservation.status,
+            'date': reservation.reservation_date.strftime('%Y-%m-%d'),
+            'time': reservation.reservation_time.strftime('%H:%M'),
+            'duration': reservation.duration_hours,
+            'party_size': reservation.party_size,
+            'end_time': end_time.strftime('%H:%M'),
+            'table': {
+                'number': table.table_number,
+                'floor': table.get_floor_display(),
+                'capacity': table.capacity,
+            },
+            'special_requests': reservation.special_requests,
+        }
+    }, status=status.HTTP_201_CREATED)

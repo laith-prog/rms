@@ -119,4 +119,49 @@ class IsWaiterOrChef(BasePermission):
                 return staff_profile.restaurant == obj.order.restaurant
             return False
         except:
+            return False
+
+
+class IsChef(BasePermission):
+    """
+    Permission to only allow chefs to access the view.
+    """
+    message = "You must be a chef to perform this action."
+
+    def has_permission(self, request, view):
+        if not (request.user.is_authenticated and request.user.is_staff_member):
+            return False
+        try:
+            return request.user.staff_profile.role == 'chef'
+        except:
+            return False
+
+
+class IsWaiter(BasePermission):
+    """
+    Permission to only allow waiters to access the view.
+    """
+    message = "You must be a waiter to perform this action."
+
+    def has_permission(self, request, view):
+        if not (request.user.is_authenticated and request.user.is_staff_member):
+            return False
+        try:
+            return request.user.staff_profile.role == 'waiter'
+        except:
+            return False
+
+
+class IsOnShift(BasePermission):
+    """
+    Permission to only allow staff members who are currently on shift.
+    """
+    message = "You must be on shift to perform this action."
+
+    def has_permission(self, request, view):
+        if not (request.user.is_authenticated and request.user.is_staff_member):
+            return False
+        try:
+            return request.user.staff_profile.is_on_shift
+        except:
             return False 

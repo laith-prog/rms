@@ -21,7 +21,14 @@ urlpatterns = [
     path('profile/update/', views.update_profile, name='update_profile'),
     path('profile/upload-image/', views.upload_profile_image, name='upload_profile_image'),
     
-    # Staff management endpoints
+    # Staff authentication endpoints
+    path('staff/login/', views.staff_login, name='staff_login'),
+    path('staff/profile/', views.staff_profile, name='staff_profile'),
+    path('staff/profile/update/', views.update_staff_profile, name='update_staff_profile'),
+    path('staff/shifts/', views.staff_shifts, name='staff_shifts'),
+    path('staff/clock-toggle/', views.staff_clock_toggle, name='staff_clock_toggle'),
+    
+    # Staff management endpoints (for managers)
     path('staff/create/', views.create_staff_member, name='create_staff_member'),
     path('staff/shifts/create/', views.create_staff_shift, name='create_staff_shift'),
     path('staff/list/', views.staff_list, name='staff_list'),

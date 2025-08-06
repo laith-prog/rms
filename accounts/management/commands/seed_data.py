@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from accounts.models import CustomerProfile, StaffProfile, TokenVersion
-from restaurants.models import Restaurant, Category, MenuItem, Table
+from restaurants.models import Restaurant, Category, MenuItem, Table, Review
 from orders.models import Order, OrderItem, OrderStatusUpdate
 import random
 from django.utils import timezone
@@ -34,6 +34,7 @@ class Command(BaseCommand):
             Order.objects.all().delete()
             
             # Delete restaurant data
+            Review.objects.all().delete()
             MenuItem.objects.all().delete()
             Table.objects.all().delete()
             Restaurant.objects.all().delete()
@@ -228,8 +229,65 @@ class Command(BaseCommand):
                     is_active=True,
                     is_reserved=random.choice([True, False])
                 )
+            
+            # Create reviews for restaurant
+            self.stdout.write(f'Creating reviews for restaurant: {restaurant.name}')
+            for j in range(random.randint(5, 15)):  # 5-15 reviews per restaurant
+                # Select a random customer to leave the review
+                customer = random.choice(customers)
+                
+                # Generate random rating and comment
+                rating = random.randint(1, 5)
+                
+                # Generate more positive comments for higher ratings
+                if rating >= 4:
+                    comments = [
+                        f"Great {primary_category.name} food! Loved the atmosphere.",
+                        f"Excellent service and delicious dishes. Will come back!",
+                        f"One of the best {primary_category.name} restaurants in town.",
+                        f"Amazing experience at {restaurant.name}. Highly recommended!",
+                        f"The food was exceptional and the staff was very friendly."
+                    ]
+                elif rating == 3:
+                    comments = [
+                        f"Decent food but service could be better.",
+                        f"Average experience. Nothing special but not bad either.",
+                        f"Food was good but a bit overpriced.",
+                        f"Okay place. Might come back.",
+                        f"The {primary_category.name} food was authentic but the portions were small."
+                    ]
+                else:
+                    comments = [
+                        f"Disappointing experience. Food was not fresh.",
+                        f"Poor service and long wait times.",
+                        f"Not worth the price. Won't come back.",
+                        f"The food was below average.",
+                        f"Expected better from a {primary_category.name} restaurant."
+                    ]
+                
+                comment = random.choice(comments)
+                
+                # Create the review with a random date within the last 3 months
+                days_ago = random.randint(0, 90)
+                review_date = timezone.now() - timedelta(days=days_ago)
+                
+                Review.objects.create(
+                    customer=customer,
+                    restaurant=restaurant,
+                    rating=rating,
+                    comment=comment,
+                    created_at=review_date
+                )
         
-        self.stdout.write(self.style.SUCCESS(f'Created {len(restaurants)} restaurants with staff, menu items, and tables'))
+        self.stdout.write(self.style.SUCCESS(f'Created {len(restaurants)} restaurants with staff, menu items, tables, and reviews'))
+        
+        # Update restaurant average ratings based on reviews
+        for restaurant in restaurants:
+            reviews = Review.objects.filter(restaurant=restaurant)
+            if reviews.exists():
+                avg_rating = sum(review.rating for review in reviews) / reviews.count()
+                restaurant.average_rating = round(avg_rating, 2)
+                restaurant.save()
         
         # Create orders
         self.stdout.write('Creating orders...')
