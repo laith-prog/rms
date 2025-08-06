@@ -9,7 +9,7 @@ from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
-from .models import Restaurant, Category, MenuItem, Table, Reservation, Review
+from .models import Restaurant, Category, MenuItem, Table, Reservation, Review, ReservationStatusUpdate
 from accounts.models import User, StaffProfile
 from accounts.permissions import IsSuperAdmin, IsRestaurantManager, IsWaiterOrChef, IsCustomer, IsStaffMember, IsRestaurantStaff
 from orders.models import Order, OrderItem, OrderStatusUpdate
