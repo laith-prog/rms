@@ -1,0 +1,1220 @@
+{
+  "info": {
+    "name": "Restaurant Management System API",
+    "description": "Complete API collection for the Restaurant Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "Authentication endpoints for customers and staff",
+      "item": [
+        {
+          "name": "Send Verification Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/send-verification-code/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "send-verification-code", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"0912345678\"\n}"
+            },
+            "description": "Send a verification code to the provided phone number"
+          }
+        },
+        {
+          "name": "Verify Phone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/verify-phone/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "verify-phone", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"0912345678\",\n    \"code\": \"123456\"\n}"
+            },
+            "description": "Verify the phone number with the received code"
+          }
+        },
+        {
+          "name": "Customer Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/login/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "login", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"0912345678\",\n    \"password\": \"your_password\"\n}"
+            },
+            "description": "Login for customers to get JWT tokens"
+          }
+        },
+        {
+          "name": "Customer Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/register/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "register", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"0912345678\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"password\": \"your_password\",\n    \"confirm_password\": \"your_password\"\n}"
+            },
+            "description": "Register a new customer account"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/logout/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "logout", ""]
+            },
+            "description": "Logout and invalidate the current token"
+          }
+        },
+        {
+          "name": "Staff Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/login/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "login", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"1234567890\",\n    \"password\": \"testpass123\"\n}"
+            },
+            "description": "Login for staff members (chef, waiter, manager)"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/token/refresh/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "token", "refresh", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refresh\": \"your_refresh_token\"\n}"
+            },
+            "description": "Get a new access token using refresh token"
+          }
+        },
+        {
+          "name": "Verify Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/token/verify/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "token", "verify", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"your_access_token\"\n}"
+            },
+            "description": "Verify if a token is valid"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer Profile",
+      "description": "Customer profile management endpoints",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/profile/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "profile", ""]
+            },
+            "description": "Get the current customer's profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/profile/update/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "profile", "update", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\"\n}"
+            },
+            "description": "Update customer profile information"
+          }
+        },
+        {
+          "name": "Upload Profile Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/profile/upload-image/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "profile", "upload-image", ""]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "/path/to/your/image.jpg"
+                }
+              ]
+            },
+            "description": "Upload a profile image"
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/change-password/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "change-password", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"old_password\": \"your_current_password\",\n    \"new_password\": \"your_new_password\",\n    \"confirm_password\": \"your_new_password\"\n}"
+            },
+            "description": "Change customer password"
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/forgot-password/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "forgot-password", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"0912345678\"\n}"
+            },
+            "description": "Request a password reset code"
+          }
+        },
+        {
+          "name": "Verify Reset Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/verify-reset-code/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "verify-reset-code", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"0912345678\",\n    \"code\": \"123456\"\n}"
+            },
+            "description": "Verify the password reset code"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/reset-password/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "reset-password", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"0912345678\",\n    \"code\": \"123456\",\n    \"new_password\": \"your_new_password\",\n    \"confirm_password\": \"your_new_password\"\n}"
+            },
+            "description": "Reset password with verification code"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Staff Management",
+      "description": "Staff profile and shift management endpoints",
+      "item": [
+        {
+          "name": "Get Staff Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/profile/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "profile", ""]
+            },
+            "description": "Get the current staff member's profile"
+          }
+        },
+        {
+          "name": "Update Staff Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/profile/update/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "profile", "update", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Chef\"\n}"
+            },
+            "description": "Update staff profile information"
+          }
+        },
+        {
+          "name": "Get Staff Shifts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/shifts/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "shifts", ""]
+            },
+            "description": "Get all shifts for the current staff member"
+          }
+        },
+        {
+          "name": "Clock In/Out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/clock-toggle/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "clock-toggle", ""]
+            },
+            "description": "Toggle clock in/out status for the current staff member"
+          }
+        },
+        {
+          "name": "Create Staff Member (Manager Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/create/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "create", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"1234567890\",\n    \"password\": \"testpass123\",\n    \"first_name\": \"Jane\",\n    \"last_name\": \"Waiter\",\n    \"role\": \"waiter\"\n}"
+            },
+            "description": "Create a new staff member (manager only)"
+          }
+        },
+        {
+          "name": "Create Staff Shift (Manager Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/shifts/create/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "shifts", "create", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"staff_id\": 1,\n    \"start_time\": \"2025-08-15T09:00:00Z\",\n    \"end_time\": \"2025-08-15T17:00:00Z\"\n}"
+            },
+            "description": "Create a new shift for a staff member (manager only)"
+          }
+        },
+        {
+          "name": "List Staff Members (Manager Only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/list/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "list", ""]
+            },
+            "description": "List all staff members for the manager's restaurant"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Restaurants",
+      "description": "Restaurant listing and details endpoints",
+      "item": [
+        {
+          "name": "List Restaurants",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", ""]
+            },
+            "description": "Get a list of all restaurants"
+          }
+        },
+        {
+          "name": "List Restaurant Categories",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/categories/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "categories", ""]
+            },
+            "description": "Get a list of all restaurant categories"
+          }
+        },
+        {
+          "name": "Restaurant Details",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", ""]
+            },
+            "description": "Get details for a specific restaurant"
+          }
+        },
+        {
+          "name": "Restaurant Menu",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/menu/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "menu", ""]
+            },
+            "description": "Get the menu for a specific restaurant"
+          }
+        },
+        {
+          "name": "Restaurant Tables",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/tables/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "tables", ""]
+            },
+            "description": "Get all tables for a specific restaurant"
+          }
+        },
+        {
+          "name": "Available Tables",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/available-tables/?date=2025-08-15&time=19:00&party_size=4",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "available-tables", ""],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2025-08-15"
+                },
+                {
+                  "key": "time",
+                  "value": "19:00"
+                },
+                {
+                  "key": "party_size",
+                  "value": "4"
+                }
+              ]
+            },
+            "description": "Get available tables for a specific date and time"
+          }
+        },
+        {
+          "name": "Restaurant Reviews",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/reviews/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "reviews", ""]
+            },
+            "description": "Get reviews for a specific restaurant"
+          }
+        },
+        {
+          "name": "Restaurant Dashboard (Manager)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/dashboard/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "dashboard", ""]
+            },
+            "description": "Get dashboard information for manager's restaurant"
+          }
+        },
+        {
+          "name": "Staff Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/staff/dashboard/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "staff", "dashboard", ""]
+            },
+            "description": "Get dashboard information for staff members"
+          }
+        },
+        {
+          "name": "Analytics Dashboard (Manager)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/staff/analytics/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "staff", "analytics", ""]
+            },
+            "description": "Get analytics information for manager's restaurant"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reservations",
+      "description": "Reservation management endpoints",
+      "item": [
+        {
+          "name": "Create Reservation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/reserve/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "reserve", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": \"{{restaurant_id}}\",\n    \"table_id\": \"{{table_id}}\",\n    \"date\": \"2025-08-15\",\n    \"time\": \"19:00\",\n    \"party_size\": 4,\n    \"special_requests\": \"Window seat if possible\",\n    \"duration_hours\": 2\n}"
+            },
+            "description": "Create a new reservation"
+          }
+        },
+        {
+          "name": "List Customer Reservations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/reservations/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "reservations", ""]
+            },
+            "description": "Get all reservations for the current customer"
+          }
+        },
+        {
+          "name": "Reservation Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/reservations/{{reservation_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "reservations", "{{reservation_id}}", ""]
+            },
+            "description": "Get details for a specific reservation"
+          }
+        },
+        {
+          "name": "Cancel Reservation",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/reservations/{{reservation_id}}/cancel/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "reservations", "{{reservation_id}}", "cancel", ""]
+            },
+            "description": "Cancel a specific reservation"
+          }
+        },
+        {
+          "name": "Update Reservation",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/reservations/{{reservation_id}}/update/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "reservations", "{{reservation_id}}", "update", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"date\": \"2025-08-16\",\n    \"time\": \"20:00\",\n    \"party_size\": 5,\n    \"special_requests\": \"Quiet area please\",\n    \"duration_hours\": 2\n}"
+            },
+            "description": "Update a specific reservation"
+          }
+        },
+        {
+          "name": "List Restaurant Reservations (Staff Only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/reservations/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "reservations", ""]
+            },
+            "description": "Get all reservations for a specific restaurant (staff only)"
+          }
+        },
+        {
+          "name": "Update Reservation Status (Staff Only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/reservations/{{reservation_id}}/status/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "reservations", "{{reservation_id}}", "status", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"confirmed\"\n}"
+            },
+            "description": "Update the status of a reservation (staff only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "description": "Order management endpoints",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/create/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "create", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": \"{{restaurant_id}}\",\n    \"reservation_id\": \"{{reservation_id}}\",\n    \"items\": [\n        {\n            \"menu_item_id\": 1,\n            \"quantity\": 2,\n            \"special_instructions\": \"No onions\"\n        },\n        {\n            \"menu_item_id\": 3,\n            \"quantity\": 1,\n            \"special_instructions\": \"\"\n        }\n    ]\n}"
+            },
+            "description": "Create a new order"
+          }
+        },
+        {
+          "name": "Track Order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/{{order_id}}/track/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "{{order_id}}", "track", ""]
+            },
+            "description": "Track the status of an order in real-time"
+          }
+        },
+        {
+          "name": "List Customer Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", ""]
+            },
+            "description": "Get all orders for the current customer"
+          }
+        },
+        {
+          "name": "Order Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/{{order_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "{{order_id}}", ""]
+            },
+            "description": "Get details for a specific order"
+          }
+        },
+        {
+          "name": "Update Order (Add Items)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/{{order_id}}/update/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "{{order_id}}", "update", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"menu_item_id\": 5,\n            \"quantity\": 1,\n            \"special_instructions\": \"Extra spicy\"\n        }\n    ]\n}"
+            },
+            "description": "Add items to an existing order"
+          }
+        },
+        {
+          "name": "List Restaurant Orders (Staff Only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/restaurant/{{restaurant_id}}/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "restaurant", "{{restaurant_id}}", ""]
+            },
+            "description": "Get all orders for a specific restaurant (staff only)"
+          }
+        },
+        {
+          "name": "Chef Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/chef/orders/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "chef", "orders", ""]
+            },
+            "description": "Get all orders assigned to the chef"
+          }
+        },
+        {
+          "name": "Waiter Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/waiter/orders/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "waiter", "orders", ""]
+            },
+            "description": "Get all orders assigned to the waiter"
+          }
+        },
+        {
+          "name": "Staff Update Order",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/staff/{{order_id}}/update/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "staff", "{{order_id}}", "update", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"menu_item_id\": 5,\n            \"quantity\": 1,\n            \"special_instructions\": \"Extra spicy\"\n        }\n    ]\n}"
+            },
+            "description": "Update an order (staff only)"
+          }
+        },
+        {
+          "name": "Update Order Status (Staff Only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/{{order_id}}/status/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "{{order_id}}", "status", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"preparing\"\n}"
+            },
+            "description": "Update the status of an order (staff only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Menu Management (Staff Only)",
+      "description": "Menu management endpoints for staff",
+      "item": [
+        {
+          "name": "Create Menu Item (Manager Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/menu-items/create/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "menu-items", "create", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Grilled Salmon\",\n    \"description\": \"Fresh salmon grilled to perfection\",\n    \"price\": 24.99,\n    \"food_category\": \"main\",\n    \"is_available\": true,\n    \"restaurant_id\": \"{{restaurant_id}}\"\n}"
+            },
+            "description": "Create a new menu item (manager only)"
+          }
+        },
+        {
+          "name": "Add Category to Restaurant (Manager Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/categories/add/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "categories", "add", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": \"{{restaurant_id}}\",\n    \"category_id\": 1\n}"
+            },
+            "description": "Add a category to a restaurant (manager only)"
+          }
+        },
+        {
+          "name": "Update Menu Item (Manager Only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/menu/{{menu_item_id}}/update/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "menu", "{{menu_item_id}}", "update", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Grilled Salmon\",\n    \"description\": \"Fresh Atlantic salmon grilled with herbs\",\n    \"price\": 26.99,\n    \"food_category\": \"main\",\n    \"is_available\": true\n}"
+            },
+            "description": "Update an existing menu item (manager only)"
+          }
+        },
+        {
+          "name": "Delete Menu Item (Manager Only)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/menu/{{menu_item_id}}/delete/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "menu", "{{menu_item_id}}", "delete", ""]
+            },
+            "description": "Delete a menu item (manager only)"
+          }
+        },
+        {
+          "name": "Toggle Menu Item Availability (Chef/Manager)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/menu/{{menu_item_id}}/toggle-availability/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "menu", "{{menu_item_id}}", "toggle-availability", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"is_available\": false\n}"
+            },
+            "description": "Toggle the availability of a menu item (chef or manager)"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://rms-production-7292.up.railway.app",
+      "type": "string"
+    },
+    {
+      "key": "restaurant_id",
+      "value": "22",
+      "type": "string"
+    },
+    {
+      "key": "table_id",
+      "value": "202",
+      "type": "string"
+    },
+    {
+      "key": "reservation_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "order_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "menu_item_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "your_customer_access_token",
+      "type": "string"
+    },
+    {
+      "key": "staff_token",
+      "value": "your_staff_access_token",
+      "type": "string"
+    },
+    {
+      "key": "manager_token",
+      "value": "your_manager_access_token",
+      "type": "string"
+    }
+  ]
+}

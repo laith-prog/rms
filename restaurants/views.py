@@ -603,7 +603,7 @@ def restaurant_dashboard(request):
         'name': restaurant.name,
         'address': restaurant.address,
         'phone': restaurant.phone,
-        'cuisine': restaurant.cuisine.name if restaurant.cuisine else None,
+        'categories': [category.name for category in restaurant.categories.all()],
         'opening_time': restaurant.opening_time,
         'closing_time': restaurant.closing_time,
         'is_active': restaurant.is_active,
