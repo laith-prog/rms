@@ -180,6 +180,28 @@
             },
             "description": "Verify if a token is valid"
           }
+        },
+        {
+          "name": "Debug Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/debug-token/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "debug-token", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"token\": \"your_access_token_here\"\n}"
+            },
+            "description": "Debug JWT token issues (development only)"
+          }
         }
       ]
     },

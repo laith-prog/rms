@@ -40,4 +40,7 @@ urlpatterns = [
     
     # Fix permissions for troubleshooting
     path('fix-manager-permissions/', views.fix_manager_permissions, name='fix_manager_permissions'),
+    
+    # Debug endpoint (development only)
+    path('debug-token/', views.debug_token, name='debug_token'),
 ] 

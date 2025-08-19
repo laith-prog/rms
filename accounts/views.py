@@ -798,6 +798,105 @@ def create_chef(request):
     }, status=status.HTTP_201_CREATED)
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['token'],
+        properties={
+            'token': openapi.Schema(type=openapi.TYPE_STRING, description='JWT token to debug'),
+        },
+    ),
+    responses={
+        200: 'Token debug information',
+        400: 'Invalid token',
+    },
+    operation_description="Debug JWT token issues (development only)"
+)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def debug_token(request):
+    """Debug JWT token issues (development only)"""
+    token = request.data.get('token')
+    if not token:
+        return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        from rest_framework_simplejwt.tokens import AccessToken
+        from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+        from .models import TokenVersion
+        
+        # Try to decode the token
+        try:
+            access_token = AccessToken(token)
+            token_data = dict(access_token.payload)
+        except (InvalidToken, TokenError) as e:
+            return Response({
+                'error': 'Token decode failed',
+                'details': str(e),
+                'token_preview': token[:20] + '...' if len(token) > 20 else token
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get user information
+        user_id = token_data.get('user_id')
+        if not user_id:
+            return Response({'error': 'No user_id in token'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': f'User with id {user_id} not found'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get token version information
+        token_version_in_token = token_data.get('token_version')
+        current_version = TokenVersion.get_version(user)
+        
+        # Check if token is blacklisted
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+        jti = token_data.get('jti')
+        is_blacklisted = False
+        if jti:
+            try:
+                outstanding_token = OutstandingToken.objects.get(jti=jti)
+                is_blacklisted = BlacklistedToken.objects.filter(token=outstanding_token).exists()
+            except OutstandingToken.DoesNotExist:
+                pass
+        
+        return Response({
+            'token_valid': True,
+            'user': {
+                'id': user.id,
+                'phone': user.phone,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'is_staff_member': user.is_staff_member,
+                'is_customer': user.is_customer,
+            },
+            'token_data': {
+                'user_id': token_data.get('user_id'),
+                'exp': token_data.get('exp'),
+                'iat': token_data.get('iat'),
+                'jti': token_data.get('jti'),
+                'token_type': token_data.get('token_type'),
+            },
+            'version_info': {
+                'token_version': token_version_in_token,
+                'current_version': current_version,
+                'version_match': token_version_in_token == current_version,
+            },
+            'blacklist_info': {
+                'is_blacklisted': is_blacklisted,
+                'jti': jti,
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': 'Unexpected error during token debug',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_staff_shift(request):
