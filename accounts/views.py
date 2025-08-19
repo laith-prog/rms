@@ -614,6 +614,190 @@ def create_staff_member(request):
     }, status=status.HTTP_201_CREATED)
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['phone', 'password', 'first_name', 'last_name'],
+        properties={
+            'phone': openapi.Schema(type=openapi.TYPE_STRING, description='Phone number for the waiter'),
+            'password': openapi.Schema(type=openapi.TYPE_STRING, description='Password for the waiter account'),
+            'first_name': openapi.Schema(type=openapi.TYPE_STRING, description='First name of the waiter'),
+            'last_name': openapi.Schema(type=openapi.TYPE_STRING, description='Last name of the waiter'),
+        },
+    ),
+    responses={
+        201: openapi.Response(
+            description="Waiter created successfully",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'success': openapi.Schema(type=openapi.TYPE_STRING),
+                    'staff_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'user_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                }
+            )
+        ),
+        400: 'Bad request - invalid input or phone already exists',
+        403: 'Forbidden - only managers can create waiters',
+    },
+    operation_description="Create a new waiter (manager only)"
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_waiter(request):
+    """Create a new waiter (manager only)"""
+    user = request.user
+    
+    # Verify that the user is a manager
+    if not user.is_staff_member:
+        return Response({'error': 'Only staff members can access this endpoint'}, 
+                         status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        staff_profile = user.staff_profile
+        if staff_profile.role != 'manager':
+            return Response({'error': 'Only managers can create waiters'}, 
+                            status=status.HTTP_403_FORBIDDEN)
+        
+        restaurant = staff_profile.restaurant
+    except:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get waiter details from request
+    phone = request.data.get('phone')
+    password = request.data.get('password')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    
+    # Validate required fields
+    if not phone or not password or not first_name or not last_name:
+        return Response({'error': 'Phone, password, first name, and last name are required'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if user with this phone already exists
+    if User.objects.filter(phone=phone).exists():
+        return Response({'error': 'User with this phone number already exists'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create the user
+    new_user = User.objects.create_user(
+        phone=phone,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        is_staff_member=True,
+        is_phone_verified=True  # Auto-verify staff phone numbers
+    )
+    
+    # Create staff profile with waiter role
+    staff_profile = StaffProfile.objects.create(
+        user=new_user,
+        role='waiter',
+        restaurant=restaurant
+    )
+    
+    return Response({
+        'success': 'Waiter created successfully',
+        'staff_id': staff_profile.id,
+        'user_id': new_user.id,
+        'role': 'waiter',
+        'restaurant': restaurant.name
+    }, status=status.HTTP_201_CREATED)
+
+
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['phone', 'password', 'first_name', 'last_name'],
+        properties={
+            'phone': openapi.Schema(type=openapi.TYPE_STRING, description='Phone number for the chef'),
+            'password': openapi.Schema(type=openapi.TYPE_STRING, description='Password for the chef account'),
+            'first_name': openapi.Schema(type=openapi.TYPE_STRING, description='First name of the chef'),
+            'last_name': openapi.Schema(type=openapi.TYPE_STRING, description='Last name of the chef'),
+        },
+    ),
+    responses={
+        201: openapi.Response(
+            description="Chef created successfully",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'success': openapi.Schema(type=openapi.TYPE_STRING),
+                    'staff_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'user_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                }
+            )
+        ),
+        400: 'Bad request - invalid input or phone already exists',
+        403: 'Forbidden - only managers can create chefs',
+    },
+    operation_description="Create a new chef (manager only)"
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_chef(request):
+    """Create a new chef (manager only)"""
+    user = request.user
+    
+    # Verify that the user is a manager
+    if not user.is_staff_member:
+        return Response({'error': 'Only staff members can access this endpoint'}, 
+                         status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        staff_profile = user.staff_profile
+        if staff_profile.role != 'manager':
+            return Response({'error': 'Only managers can create chefs'}, 
+                            status=status.HTTP_403_FORBIDDEN)
+        
+        restaurant = staff_profile.restaurant
+    except:
+        return Response({'error': 'Staff profile not found'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Get chef details from request
+    phone = request.data.get('phone')
+    password = request.data.get('password')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    
+    # Validate required fields
+    if not phone or not password or not first_name or not last_name:
+        return Response({'error': 'Phone, password, first name, and last name are required'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if user with this phone already exists
+    if User.objects.filter(phone=phone).exists():
+        return Response({'error': 'User with this phone number already exists'}, 
+                         status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create the user
+    new_user = User.objects.create_user(
+        phone=phone,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        is_staff_member=True,
+        is_phone_verified=True  # Auto-verify staff phone numbers
+    )
+    
+    # Create staff profile with chef role
+    staff_profile = StaffProfile.objects.create(
+        user=new_user,
+        role='chef',
+        restaurant=restaurant
+    )
+    
+    return Response({
+        'success': 'Chef created successfully',
+        'staff_id': staff_profile.id,
+        'user_id': new_user.id,
+        'role': 'chef',
+        'restaurant': restaurant.name
+    }, status=status.HTTP_201_CREATED)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_staff_shift(request):

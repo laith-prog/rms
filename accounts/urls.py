@@ -30,6 +30,8 @@ urlpatterns = [
     
     # Staff management endpoints (for managers)
     path('staff/create/', views.create_staff_member, name='create_staff_member'),
+    path('staff/create-waiter/', views.create_waiter, name='create_waiter'),
+    path('staff/create-chef/', views.create_chef, name='create_chef'),
     path('staff/shifts/create/', views.create_staff_shift, name='create_staff_shift'),
     path('staff/list/', views.staff_list, name='staff_list'),
     

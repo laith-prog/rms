@@ -464,6 +464,58 @@
           }
         },
         {
+          "name": "Create Waiter (Manager Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/create-waiter/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "create-waiter", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"1234567891\",\n    \"password\": \"waiterpass123\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Waiter\"\n}"
+            },
+            "description": "Create a new waiter (manager only)"
+          }
+        },
+        {
+          "name": "Create Chef (Manager Only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{manager_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/create-chef/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "create-chef", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"phone\": \"1234567892\",\n    \"password\": \"chefpass123\",\n    \"first_name\": \"Maria\",\n    \"last_name\": \"Chef\"\n}"
+            },
+            "description": "Create a new chef (manager only)"
+          }
+        },
+        {
           "name": "Create Staff Shift (Manager Only)",
           "request": {
             "method": "POST",
@@ -848,9 +900,61 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"restaurant_id\": \"{{restaurant_id}}\",\n    \"reservation_id\": \"{{reservation_id}}\",\n    \"items\": [\n        {\n            \"menu_item_id\": 1,\n            \"quantity\": 2,\n            \"special_instructions\": \"No onions\"\n        },\n        {\n            \"menu_item_id\": 3,\n            \"quantity\": 1,\n            \"special_instructions\": \"\"\n        }\n    ]\n}"
+              "raw": "{\n    \"restaurant_id\": 1,\n    \"order_type\": \"pickup\",\n    \"payment_method\": \"cash\",\n    \"special_instructions\": \"Please prepare quickly\",\n    \"items\": [\n        {\n            \"item_id\": 1,\n            \"quantity\": 2,\n            \"special_instructions\": \"No onions\"\n        },\n        {\n            \"item_id\": 3,\n            \"quantity\": 1,\n            \"special_instructions\": \"\"\n        }\n    ]\n}"
             },
-            "description": "Create a new order"
+            "description": "Create a new pickup order"
+          }
+        },
+        {
+          "name": "Create Dine-In Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/create/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "create", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": 1,\n    \"order_type\": \"dine_in\",\n    \"reservation_id\": 1,\n    \"payment_method\": \"credit_card\",\n    \"special_instructions\": \"Table for anniversary dinner\",\n    \"items\": [\n        {\n            \"item_id\": 1,\n            \"quantity\": 2,\n            \"special_instructions\": \"Medium rare\"\n        },\n        {\n            \"item_id\": 2,\n            \"quantity\": 1,\n            \"special_instructions\": \"Extra sauce\"\n        }\n    ]\n}"
+            },
+            "description": "Create a new dine-in order with table reservation"
+          }
+        },
+        {
+          "name": "Create Delivery Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/create/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "orders", "create", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": 1,\n    \"order_type\": \"delivery\",\n    \"delivery_address\": \"123 Main Street, Apt 4B, City, State 12345\",\n    \"payment_method\": \"digital_wallet\",\n    \"special_instructions\": \"Please ring doorbell twice\",\n    \"items\": [\n        {\n            \"item_id\": 1,\n            \"quantity\": 1,\n            \"special_instructions\": \"Extra spicy\"\n        },\n        {\n            \"item_id\": 4,\n            \"quantity\": 2,\n            \"special_instructions\": \"No ice\"\n        }\n    ]\n}"
+            },
+            "description": "Create a new delivery order with address"
           }
         },
         {
