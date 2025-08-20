@@ -897,6 +897,53 @@ def debug_token(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@swagger_auto_schema(
+    method='get',
+    responses={
+        200: 'Authentication test successful',
+        401: 'Authentication failed',
+    },
+    operation_description="Test authentication with current token"
+)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def test_auth(request):
+    """Test authentication with current token"""
+    user = request.user
+    
+    # Get staff profile if user is staff
+    staff_info = None
+    if user.is_staff_member:
+        try:
+            staff_profile = user.staff_profile
+            staff_info = {
+                'role': staff_profile.role,
+                'restaurant_id': staff_profile.restaurant.id,
+                'restaurant_name': staff_profile.restaurant.name,
+                'is_on_shift': staff_profile.is_on_shift,
+            }
+        except:
+            staff_info = {'error': 'Staff profile not found'}
+    
+    return Response({
+        'success': 'Authentication successful',
+        'user': {
+            'id': user.id,
+            'phone': user.phone,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'is_staff_member': user.is_staff_member,
+            'is_customer': user.is_customer,
+        },
+        'staff_info': staff_info,
+        'request_info': {
+            'method': request.method,
+            'path': request.path,
+            'auth_header': request.META.get('HTTP_AUTHORIZATION', 'Not provided')[:50] + '...' if request.META.get('HTTP_AUTHORIZATION') else 'Not provided',
+        }
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_staff_shift(request):

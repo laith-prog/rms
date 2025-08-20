@@ -118,6 +118,7 @@ class Reservation(models.Model):
     party_size = models.IntegerField()
     reservation_date = models.DateField()
     reservation_time = models.TimeField()
+    duration_hours = models.IntegerField(default=1, help_text="Duration of reservation in hours")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     special_requests = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

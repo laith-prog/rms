@@ -772,6 +772,81 @@
           }
         },
         {
+          "name": "Get Available Dates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/available-dates/?party_size=2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "available-dates", ""],
+              "query": [
+                {
+                  "key": "party_size",
+                  "value": "2",
+                  "description": "Number of people (optional, default: 2)"
+                }
+              ]
+            },
+            "description": "Get available dates for reservation (next 30 days)"
+          }
+        },
+        {
+          "name": "Get Available Times",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/available-times/?date=2025-01-20&party_size=2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "available-times", ""],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2025-01-20",
+                  "description": "Date in YYYY-MM-DD format (required)"
+                },
+                {
+                  "key": "party_size",
+                  "value": "2",
+                  "description": "Number of people (optional, default: 2)"
+                }
+              ]
+            },
+            "description": "Get available times for reservation on a specific date"
+          }
+        },
+        {
+          "name": "Get Available Durations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/available-durations/?date=2025-01-20&time=19:00&party_size=2",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "available-durations", ""],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2025-01-20",
+                  "description": "Date in YYYY-MM-DD format (required)"
+                },
+                {
+                  "key": "time",
+                  "value": "19:00",
+                  "description": "Time in HH:MM format (required)"
+                },
+                {
+                  "key": "party_size",
+                  "value": "2",
+                  "description": "Number of people (optional, default: 2)"
+                }
+              ]
+            },
+            "description": "Get available durations for reservation at specific date and time"
+          }
+        },
+        {
           "name": "List Customer Reservations",
           "request": {
             "method": "GET",

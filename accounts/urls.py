@@ -43,4 +43,5 @@ urlpatterns = [
     
     # Debug endpoint (development only)
     path('debug-token/', views.debug_token, name='debug_token'),
+    path('test-auth/', views.test_auth, name='test_auth'),
 ] 
