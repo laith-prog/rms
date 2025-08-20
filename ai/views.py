@@ -1,9 +1,24 @@
-from rest_framework.decorators import api_view, permission_classes
+from django.core.cache import cache
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.throttling import ScopedRateThrottle
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from .services import AIService
+from .serializers import (
+    ChatSerializer,
+    MenuRecommendationsSerializer,
+    ReservationSuggestionsSerializer,
+    SentimentSerializer,
+    BasicRecommendationsSerializer,
+    SemanticMenuSearchSerializer,
+    UpsellRecommendationsSerializer,
+    ReviewsSummarizeSerializer,
+    PredictWaitTimeSerializer,
+)
+from .models import ChatSession, ChatMessage
 
 
 @swagger_auto_schema(
@@ -13,6 +28,8 @@ from drf_yasg import openapi
         required=['message'],
         properties={
             'message': openapi.Schema(type=openapi.TYPE_STRING, description='User message to AI'),
+            'context': openapi.Schema(type=openapi.TYPE_STRING, description='Additional context', default=''),
+            'session_id': openapi.Schema(type=openapi.TYPE_STRING, description='Existing chat session ID (UUID)'),
         },
     ),
     responses={
@@ -23,40 +40,51 @@ from drf_yasg import openapi
                 properties={
                     'response': openapi.Schema(type=openapi.TYPE_STRING, description='AI response'),
                     'success': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Success status'),
+                    'session_id': openapi.Schema(type=openapi.TYPE_STRING, description='Chat session id'),
                 }
             )
         ),
         400: 'Bad request - message is required',
         503: 'Service unavailable - AI service not configured',
     },
-    operation_description="Chat with AI assistant (currently not implemented)"
+    operation_description="Chat with AI assistant with optional session context"
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
 def ai_chat(request):
-    """
-    AI Chat endpoint (placeholder)
-    
-    This endpoint is currently not implemented. It returns a placeholder response.
-    To implement AI functionality, you would need to:
-    1. Configure AI service credentials in settings
-    2. Install required AI libraries (openai, anthropic, etc.)
-    3. Implement the actual AI chat logic
-    """
-    message = request.data.get('message')
-    
-    if not message:
-        return Response({
-            'error': 'Message is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Placeholder response - replace with actual AI implementation
-    return Response({
-        'success': False,
-        'response': 'AI chat functionality is not currently implemented. This is a placeholder endpoint.',
-        'message': 'To implement AI chat, please configure AI service credentials and implement the chat logic.',
-        'user_message': message
-    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    ai_chat.throttle_scope = 'ai'
+    serializer = ChatSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    # Persist or create session
+    session = None
+    if data.get('session_id'):
+        try:
+            session = ChatSession.objects.get(id=data['session_id'], user=request.user)
+        except ChatSession.DoesNotExist:
+            return Response({'error': 'Invalid session_id'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        session = ChatSession.objects.create(user=request.user)
+
+    # Build short history context (last 6 messages)
+    last_msgs = list(session.messages.order_by('-created_at')[:6][::-1])
+    history_text = "\n".join([f"{m.role}: {m.content}" for m in last_msgs])
+    combined_context = (data.get('context') or '')
+    if history_text:
+        combined_context = (combined_context + "\n\nRecent history:\n" + history_text).strip()
+
+    ai_service = AIService()
+    result = ai_service.chat(message=data['message'], user=request.user, context=combined_context)
+
+    # Store user and assistant messages
+    ChatMessage.objects.create(session=session, role='user', content=data['message'])
+    if result.get('success'):
+        ChatMessage.objects.create(session=session, role='assistant', content=result.get('response', ''))
+        result['session_id'] = str(session.id)
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 @swagger_auto_schema(
@@ -66,9 +94,12 @@ def ai_chat(request):
         required=['restaurant_id'],
         properties={
             'restaurant_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Restaurant ID'),
-            'dietary_preferences': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description='User dietary preferences'),
-            'allergies': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description='User allergies'),
+            'dietary_preferences': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description='User dietary preferences (vegetarian, vegan, etc.)'),
+            'dietary_restrictions': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description='Alternative name for dietary_preferences'),
+            'allergies': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_STRING), description='User allergies (nuts, dairy, etc.)'),
             'budget_range': openapi.Schema(type=openapi.TYPE_STRING, description='Budget range (low, medium, high)'),
+            'preferences': openapi.Schema(type=openapi.TYPE_STRING, description='Additional preferences (e.g., "I like spicy food and seafood")'),
+            'cuisine_type': openapi.Schema(type=openapi.TYPE_STRING, description='Preferred cuisine type (optional, for context)'),
         },
     ),
     responses={
@@ -89,32 +120,36 @@ def ai_chat(request):
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
 def menu_recommendations(request):
-    """
-    AI-powered menu recommendations (placeholder)
-    
-    This endpoint would analyze user preferences, dietary restrictions, and budget
-    to recommend suitable menu items from a specific restaurant.
-    """
-    restaurant_id = request.data.get('restaurant_id')
-    
-    if not restaurant_id:
-        return Response({
-            'error': 'Restaurant ID is required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Placeholder response - replace with actual AI implementation
-    return Response({
-        'success': False,
-        'message': 'Menu recommendations AI is not currently implemented.',
-        'placeholder_data': {
-            'restaurant_id': restaurant_id,
-            'dietary_preferences': request.data.get('dietary_preferences', []),
-            'allergies': request.data.get('allergies', []),
-            'budget_range': request.data.get('budget_range', 'medium')
-        },
-        'recommendations': []
-    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    menu_recommendations.throttle_scope = 'ai'
+    serializer = MenuRecommendationsSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    # Merge alias field
+    dietary_prefs = data.get('dietary_preferences') or data.get('dietary_restrictions') or []
+
+    # Cache key
+    cache_key = f"ai:menu_recs:{data['restaurant_id']}:{','.join(sorted([p.lower() for p in dietary_prefs]))}:{','.join(sorted([a.lower() for a in data.get('allergies', [])]))}:{data.get('budget_range')}:{data.get('cuisine_type','')}"
+    cached = cache.get(cache_key)
+    if cached:
+        return Response(cached, status=status.HTTP_200_OK)
+
+    ai_service = AIService()
+    result = ai_service.get_menu_recommendations(
+        restaurant_id=data['restaurant_id'],
+        dietary_preferences=dietary_prefs,
+        allergies=data.get('allergies', []),
+        budget_range=data.get('budget_range', 'medium'),
+        additional_preferences=data.get('preferences', ''),
+        cuisine_preference=data.get('cuisine_type', '')
+    )
+
+    if result.get('success'):
+        cache.set(cache_key, result, 300)
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST if 'not found' in result.get('error', '') else status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 @swagger_auto_schema(
@@ -148,35 +183,25 @@ def menu_recommendations(request):
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
 def reservation_suggestions(request):
-    """
-    AI-powered reservation suggestions (placeholder)
-    
-    This endpoint would analyze restaurant availability, user preferences, and
-    historical data to suggest optimal reservation times and table options.
-    """
-    restaurant_id = request.data.get('restaurant_id')
-    party_size = request.data.get('party_size')
-    preferred_date = request.data.get('preferred_date')
-    
-    if not all([restaurant_id, party_size, preferred_date]):
-        return Response({
-            'error': 'Restaurant ID, party size, and preferred date are required'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Placeholder response - replace with actual AI implementation
-    return Response({
-        'success': False,
-        'message': 'Reservation suggestions AI is not currently implemented.',
-        'placeholder_data': {
-            'restaurant_id': restaurant_id,
-            'party_size': party_size,
-            'preferred_date': preferred_date,
-            'preferred_time': request.data.get('preferred_time'),
-            'special_occasion': request.data.get('special_occasion')
-        },
-        'suggestions': []
-    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    reservation_suggestions.throttle_scope = 'ai'
+    serializer = ReservationSuggestionsSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    ai_service = AIService()
+    result = ai_service.get_reservation_suggestions(
+        restaurant_id=data['restaurant_id'],
+        party_size=data['party_size'],
+        preferred_date=str(data['preferred_date']),
+        preferred_time=(data.get('preferred_time').strftime('%H:%M') if data.get('preferred_time') else None),
+        special_occasion=data.get('special_occasion')
+    )
+
+    if result.get('success'):
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST if 'not found' in result.get('error', '') else status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 @swagger_auto_schema(
@@ -209,32 +234,22 @@ def reservation_suggestions(request):
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
 def sentiment_analysis(request):
-    """
-    AI-powered sentiment analysis (placeholder)
-    
-    This endpoint would analyze customer reviews, feedback, or complaints
-    to determine sentiment and emotional tone.
-    """
-    text = request.data.get('text')
-    
-    if not text:
-        return Response({
-            'error': 'Text is required for sentiment analysis'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Placeholder response - replace with actual AI implementation
-    return Response({
-        'success': False,
-        'message': 'Sentiment analysis AI is not currently implemented.',
-        'placeholder_data': {
-            'text': text,
-            'context': request.data.get('context', 'general')
-        },
-        'sentiment': 'neutral',
-        'confidence': 0.0,
-        'emotions': {}
-    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    sentiment_analysis.throttle_scope = 'ai'
+    serializer = SentimentSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    ai_service = AIService()
+    result = ai_service.analyze_sentiment(
+        text=data['text'],
+        context=data.get('context', 'general')
+    )
+
+    if result.get('success'):
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 @swagger_auto_schema(
@@ -266,25 +281,123 @@ def sentiment_analysis(request):
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
 def basic_recommendations(request):
-    """
-    Basic AI-powered recommendations (placeholder)
-    
-    This endpoint would provide general recommendations for restaurants,
-    popular dishes, or dining experiences based on user data and trends.
-    """
-    user_id = request.data.get('user_id', request.user.id)
-    recommendation_type = request.data.get('recommendation_type', 'restaurants')
-    
-    # Placeholder response - replace with actual AI implementation
-    return Response({
-        'success': False,
-        'message': 'Basic recommendations AI is not currently implemented.',
-        'placeholder_data': {
-            'user_id': user_id,
-            'recommendation_type': recommendation_type,
-            'location': request.data.get('location'),
-            'preferences': request.data.get('preferences', {})
-        },
-        'recommendations': []
-    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    basic_recommendations.throttle_scope = 'ai'
+    serializer = BasicRecommendationsSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    ai_service = AIService()
+    result = ai_service.get_basic_recommendations(
+        user_id=data.get('user_id', request.user.id),
+        recommendation_type=data.get('recommendation_type', 'restaurants'),
+        location=data.get('location'),
+        preferences=data.get('preferences', {})
+    )
+
+    if result.get('success'):
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
+def semantic_menu_search(request):
+    semantic_menu_search.throttle_scope = 'ai'
+    serializer = SemanticMenuSearchSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    cache_key = f"ai:semantic:{data.get('restaurant_id')}:{data['query'].strip().lower()}"
+    cached = cache.get(cache_key)
+    if cached:
+        return Response(cached, status=status.HTTP_200_OK)
+
+    ai_service = AIService()
+    result = ai_service.semantic_menu_search(query=data['query'], restaurant_id=data.get('restaurant_id'))
+
+    if result.get('success'):
+        cache.set(cache_key, result, 300)
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
+def upsell_recommendations(request):
+    upsell_recommendations.throttle_scope = 'ai'
+    serializer = UpsellRecommendationsSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    ai_service = AIService()
+    result = ai_service.upsell_recommendations(order_id=data['order_id'])
+    if result.get('success'):
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST if 'not found' in result.get('error', '') else status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
+def reviews_summarize(request):
+    reviews_summarize.throttle_scope = 'ai'
+    serializer = ReviewsSummarizeSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    ai_service = AIService()
+    result = ai_service.reviews_summarize(restaurant_id=data['restaurant_id'], since=data.get('since'))
+    if result.get('success'):
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST if 'not found' in result.get('error', '') else status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
+def predict_wait_time(request):
+    predict_wait_time.throttle_scope = 'ai'
+    serializer = PredictWaitTimeSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    ai_service = AIService()
+    result = ai_service.predict_wait_time(
+        restaurant_id=data['restaurant_id'],
+        party_size=data['party_size'],
+        time=data['time'].strftime('%H:%M')
+    )
+    if result.get('success'):
+        return Response(result, status=status.HTTP_200_OK)
+    return Response(result, status=status.HTTP_400_BAD_REQUEST if 'not found' in result.get('error', '') else status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def start_chat_session(request):
+    session = ChatSession.objects.create(user=request.user)
+    return Response({'session_id': str(session.id)}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([ScopedRateThrottle])
+def chat_session_messages(request, session_id):
+    chat_session_messages.throttle_scope = 'ai'
+    try:
+        session = ChatSession.objects.get(id=session_id, user=request.user)
+    except ChatSession.DoesNotExist:
+        return Response({'error': 'Session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        msgs = session.messages.order_by('created_at').values('role', 'content', 'created_at')
+        return Response({'messages': list(msgs)}, status=status.HTTP_200_OK)
+
+    # POST: send a message using ai_chat logic but fixed session
+    request.data._mutable = True if hasattr(request.data, '_mutable') else False
+    request.data['session_id'] = str(session.id)
+    return ai_chat(request)

@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
+from django.db import IntegrityError
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -140,7 +141,16 @@ def register_user(request):
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    user = serializer.save()
+    try:
+        user = serializer.save()
+    except IntegrityError as e:
+        # Handle database integrity errors (like unique constraint violations)
+        if 'phone' in str(e):
+            return Response({
+                'error': 'A user with this phone number already exists'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        # Re-raise other integrity errors
+        raise
     
     # Generate JWT tokens using custom serializer
     from .serializers import CustomTokenObtainPairSerializer
@@ -645,6 +655,7 @@ def create_staff_member(request):
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
 def create_waiter(request):
     """Create a new waiter (manager only)"""
     user = request.user
@@ -669,6 +680,7 @@ def create_waiter(request):
     password = request.data.get('password')
     first_name = request.data.get('first_name')
     last_name = request.data.get('last_name')
+    profile_image = request.data.get('profile_image') or request.FILES.get('profile_image')
     
     # Validate required fields
     if not phone or not password or not first_name or not last_name:
@@ -697,12 +709,22 @@ def create_waiter(request):
         restaurant=restaurant
     )
     
+    # Attach profile image if provided
+    if profile_image:
+        staff_profile.profile_image = profile_image
+        staff_profile.save()
+    
+    image_url = None
+    if staff_profile.profile_image:
+        image_url = request.build_absolute_uri(staff_profile.profile_image.url)
+    
     return Response({
         'success': 'Waiter created successfully',
         'staff_id': staff_profile.id,
         'user_id': new_user.id,
         'role': 'waiter',
-        'restaurant': restaurant.name
+        'restaurant': restaurant.name,
+        'profile_image': image_url
     }, status=status.HTTP_201_CREATED)
 
 
@@ -737,6 +759,7 @@ def create_waiter(request):
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
 def create_chef(request):
     """Create a new chef (manager only)"""
     user = request.user
@@ -761,6 +784,7 @@ def create_chef(request):
     password = request.data.get('password')
     first_name = request.data.get('first_name')
     last_name = request.data.get('last_name')
+    profile_image = request.data.get('profile_image') or request.FILES.get('profile_image')
     
     # Validate required fields
     if not phone or not password or not first_name or not last_name:
@@ -788,13 +812,23 @@ def create_chef(request):
         role='chef',
         restaurant=restaurant
     )
+
+    # Attach profile image if provided
+    if profile_image:
+        staff_profile.profile_image = profile_image
+        staff_profile.save()
+
+    image_url = None
+    if staff_profile.profile_image:
+        image_url = request.build_absolute_uri(staff_profile.profile_image.url)
     
     return Response({
         'success': 'Chef created successfully',
         'staff_id': staff_profile.id,
         'user_id': new_user.id,
         'role': 'chef',
-        'restaurant': restaurant.name
+        'restaurant': restaurant.name,
+        'profile_image': image_url
     }, status=status.HTTP_201_CREATED)
 
 
@@ -1248,6 +1282,21 @@ def staff_login(request):
         # Add profile image if exists
         if staff_profile.profile_image:
             staff_data['profile_image'] = request.build_absolute_uri(staff_profile.profile_image.url)
+
+        # Add recent shifts (last 10)
+        recent_shifts = StaffShift.objects.filter(
+            staff=staff_profile
+        ).order_by('-created_at')[:10]
+        staff_data['recent_shifts'] = [
+            {
+                'id': s.id,
+                'start_time': s.start_time.isoformat(),
+                'end_time': s.end_time.isoformat(),
+                'is_active': s.is_active,
+                'created_at': s.created_at.isoformat(),
+            }
+            for s in recent_shifts
+        ]
         
     except StaffProfile.DoesNotExist:
         return Response({'error': 'Staff profile not found'}, status=status.HTTP_400_BAD_REQUEST)

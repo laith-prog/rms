@@ -1443,7 +1443,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"restaurant_id\": {{restaurant_id}},\n    \"dietary_preferences\": [\"vegetarian\"],\n    \"allergies\": [\"nuts\"],\n    \"budget_range\": \"medium\"\n}"
+              "raw": "{\n    \"restaurant_id\": {{restaurant_id}},\n    \"dietary_restrictions\": [\"vegetarian\"],\n    \"allergies\": [\"nuts\"],\n    \"budget_range\": \"medium\",\n    \"preferences\": \"I like spicy food and seafood\",\n    \"cuisine_type\": \"Italian\"\n}"
             },
             "description": "Get AI-powered menu recommendations based on preferences"
           }
