@@ -626,16 +626,13 @@ def create_staff_member(request):
 
 @swagger_auto_schema(
     method='post',
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        required=['phone', 'password', 'first_name', 'last_name'],
-        properties={
-            'phone': openapi.Schema(type=openapi.TYPE_STRING, description='Phone number for the waiter'),
-            'password': openapi.Schema(type=openapi.TYPE_STRING, description='Password for the waiter account'),
-            'first_name': openapi.Schema(type=openapi.TYPE_STRING, description='First name of the waiter'),
-            'last_name': openapi.Schema(type=openapi.TYPE_STRING, description='Last name of the waiter'),
-        },
-    ),
+    manual_parameters=[
+        openapi.Parameter('phone', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description='Phone number for the waiter'),
+        openapi.Parameter('password', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description='Password for the waiter account'),
+        openapi.Parameter('first_name', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description='First name of the waiter'),
+        openapi.Parameter('last_name', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description='Last name of the waiter'),
+        openapi.Parameter('profile_image', openapi.IN_FORM, type=openapi.TYPE_FILE, required=False, description='Optional profile image file'),
+    ],
     responses={
         201: openapi.Response(
             description="Waiter created successfully",
@@ -730,16 +727,13 @@ def create_waiter(request):
 
 @swagger_auto_schema(
     method='post',
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        required=['phone', 'password', 'first_name', 'last_name'],
-        properties={
-            'phone': openapi.Schema(type=openapi.TYPE_STRING, description='Phone number for the chef'),
-            'password': openapi.Schema(type=openapi.TYPE_STRING, description='Password for the chef account'),
-            'first_name': openapi.Schema(type=openapi.TYPE_STRING, description='First name of the chef'),
-            'last_name': openapi.Schema(type=openapi.TYPE_STRING, description='Last name of the chef'),
-        },
-    ),
+    manual_parameters=[
+        openapi.Parameter('phone', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description='Phone number for the chef'),
+        openapi.Parameter('password', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description='Password for the chef account'),
+        openapi.Parameter('first_name', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description='First name of the chef'),
+        openapi.Parameter('last_name', openapi.IN_FORM, type=openapi.TYPE_STRING, required=True, description='Last name of the chef'),
+        openapi.Parameter('profile_image', openapi.IN_FORM, type=openapi.TYPE_FILE, required=False, description='Optional profile image file'),
+    ],
     responses={
         201: openapi.Response(
             description="Chef created successfully",

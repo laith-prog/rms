@@ -34,6 +34,7 @@ ALLOWED_HOSTS = [
     'rms-production-7292.up.railway.app',
     'localhost',
     '127.0.0.1',
+    'testserver',
 ]
 
 # Application definition
