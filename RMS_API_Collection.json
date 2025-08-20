@@ -1393,59 +1393,18 @@
       ]
     },
     {
-      "name": "AI",
-      "description": "AI chat and recommendations",
+      "name": "AI Services",
+      "description": "AI-powered features for recommendations and analysis",
       "item": [
         {
           "name": "AI Chat",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/ai/chat/",
-              "host": ["{{base_url}}"],
-              "path": ["api", "ai", "chat", ""]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"What are today's specials?\"\n}"
-            },
-            "description": "General chat about restaurants and menus."
-          }
-        },
-        {
-          "name": "AI Recommend Menu Items",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{access_token}}" },
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/ai/recommend/",
-              "host": ["{{base_url}}"],
-              "path": ["api", "ai", "recommend", ""]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"vegetarian\": true,\n  \"price_max\": \"20.00\",\n  \"restaurant_id\": 1,\n  \"category_ids\": [1,2]\n}"
-            },
-            "description": "Get recommended menu items for the authenticated customer."
-          }
-        }
-      ]
-    },
-    {
-      "name": "AI Features",
-      "description": "AI-powered features for chat, recommendations, and analysis",
-      "item": [
-        {
-          "name": "AI Chat",
-          "request": {
-            "method": "POST",
-            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -1458,9 +1417,87 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"message\": \"What restaurants do you have available?\"\n}"
+              "raw": "{\n    \"message\": \"Hello, can you help me with restaurant recommendations?\"\n}"
             },
-            "description": "Chat with AI assistant about restaurants, menus, and general dining questions. The AI has access to real restaurant data."
+            "description": "Chat with AI assistant (currently placeholder)"
+          }
+        },
+        {
+          "name": "Menu Recommendations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/menu-recommendations/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "menu-recommendations", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": {{restaurant_id}},\n    \"dietary_restrictions\": [\"vegetarian\"],\n    \"allergies\": [\"nuts\"],\n    \"budget_range\": \"medium\",\n    \"preferences\": \"I like spicy food and seafood\",\n    \"cuisine_type\": \"Italian\"\n}"
+            },
+            "description": "Get AI-powered menu recommendations based on preferences"
+          }
+        },
+        {
+          "name": "Reservation Suggestions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/reservation-suggestions/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "reservation-suggestions", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": {{restaurant_id}},\n    \"party_size\": 4,\n    \"preferred_date\": \"2024-12-25\",\n    \"preferred_time\": \"19:00\",\n    \"special_occasion\": \"birthday\"\n}"
+            },
+            "description": "Get AI-powered reservation time and table suggestions"
+          }
+        },
+        {
+          "name": "Sentiment Analysis",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/sentiment-analysis/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "sentiment-analysis", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"text\": \"The food was absolutely amazing and the service was excellent!\",\n    \"context\": \"review\"\n}"
+            },
+            "description": "Analyze sentiment and emotions in customer feedback"
           }
         },
         {
@@ -1478,81 +1515,15 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/ai/recommend/",
+              "raw": "{{base_url}}/api/ai/basic-recommendations/",
               "host": ["{{base_url}}"],
-              "path": ["api", "ai", "recommend", ""]
+              "path": ["api", "ai", "basic-recommendations", ""]
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"restaurant_id\": 1,\n    \"category_ids\": [1, 2],\n    \"vegetarian\": true,\n    \"vegan\": false,\n    \"gluten_free\": false,\n    \"price_max\": 25.00\n}"
+              "raw": "{\n    \"recommendation_type\": \"restaurants\",\n    \"location\": \"New York\",\n    \"preferences\": {\n        \"cuisine\": \"italian\",\n        \"price_range\": \"medium\"\n    }\n}"
             },
-            "description": "Get menu item recommendations based on preferences and filters. Requires authentication."
-          }
-        },
-        {
-          "name": "AI Menu Recommendations",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/ai/menu-recommendations/",
-              "host": ["{{base_url}}"],
-              "path": ["api", "ai", "menu-recommendations", ""]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"preferences\": \"I like spicy food and seafood\",\n    \"dietary_restrictions\": [\"vegetarian\"],\n    \"budget_range\": \"moderate\",\n    \"cuisine_type\": \"Italian\",\n    \"restaurant_id\": 1\n}"
-            },
-            "description": "Get AI-powered menu recommendations based on detailed preferences and dietary restrictions."
-          }
-        },
-        {
-          "name": "AI Reservation Suggestions",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/ai/reservation-suggestions/",
-              "host": ["{{base_url}}"],
-              "path": ["api", "ai", "reservation-suggestions", ""]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"restaurant_id\": 1,\n    \"party_size\": 4,\n    \"preferred_date\": \"2024-01-15\",\n    \"preferred_time\": \"19:00\",\n    \"occasion\": \"birthday celebration\",\n    \"special_requests\": \"quiet table, window seating preferred\"\n}"
-            },
-            "description": "Get AI-powered reservation suggestions based on restaurant availability and user preferences."
-          }
-        },
-        {
-          "name": "AI Sentiment Analysis",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/ai/sentiment-analysis/",
-              "host": ["{{base_url}}"],
-              "path": ["api", "ai", "sentiment-analysis", ""]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"text\": \"The food was absolutely amazing! The service was a bit slow but the staff was very friendly. Overall a great experience.\",\n    \"context\": \"restaurant_review\"\n}"
-            },
-            "description": "Analyze sentiment of reviews, feedback, or any text related to restaurant experience."
+            "description": "Get basic AI-powered recommendations for restaurants, dishes, or experiences"
           }
         }
       ]

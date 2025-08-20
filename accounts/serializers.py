@@ -87,6 +87,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         except PhoneVerification.DoesNotExist:
             raise serializers.ValidationError({"phone": "Phone number is not verified"})
         
+        # Check if user with this phone already exists
+        if User.objects.filter(phone=phone).exists():
+            raise serializers.ValidationError({"phone": "A user with this phone number already exists"})
+        
         return data
     
     def create(self, validated_data):
