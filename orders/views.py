@@ -171,12 +171,17 @@ def create_order(request):
     items_to_create = []
     
     for item_data in items_data:
-        item_id = item_data.get('item_id')
+        # Accept both 'item_id' and 'menu_item_id' for flexibility
+        item_id = item_data.get('item_id') or item_data.get('menu_item_id')
         quantity = item_data.get('quantity', 1)
         special_instructions = item_data.get('special_instructions', '')
         
         if not item_id:
-            return Response({'error': 'Item ID is required for each order item'}, 
+            return Response({'error': 'Item ID (item_id or menu_item_id) is required for each order item'}, 
+                             status=status.HTTP_400_BAD_REQUEST)
+        
+        if quantity <= 0:
+            return Response({'error': 'Quantity must be greater than 0'}, 
                              status=status.HTTP_400_BAD_REQUEST)
         
         try:

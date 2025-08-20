@@ -23,6 +23,7 @@ urlpatterns = [
     
     # Staff authentication endpoints
     path('staff/login/', views.staff_login, name='staff_login'),
+    path('staff/logout/', views.staff_logout, name='staff_logout'),
     path('staff/profile/', views.staff_profile, name='staff_profile'),
     path('staff/profile/update/', views.update_staff_profile, name='update_staff_profile'),
     path('staff/shifts/', views.staff_shifts, name='staff_shifts'),
