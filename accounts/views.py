@@ -1279,9 +1279,8 @@ def staff_login(request):
                     'end_time': current_shift.end_time.isoformat(),
                 }
         
-        # Add profile image if exists
-        if staff_profile.profile_image:
-            staff_data['profile_image'] = request.build_absolute_uri(staff_profile.profile_image.url)
+        # Always include profile_image key (null if missing)
+        staff_data['profile_image'] = request.build_absolute_uri(staff_profile.profile_image.url) if staff_profile.profile_image else None
 
         # Add recent shifts (last 10)
         recent_shifts = StaffShift.objects.filter(
@@ -1527,9 +1526,8 @@ def staff_profile(request):
             'capabilities': get_role_capabilities(staff_profile.role)
         }
         
-        # Add profile image if exists
-        if staff_profile.profile_image:
-            profile_data['profile_image'] = request.build_absolute_uri(staff_profile.profile_image.url)
+        # Always include profile_image key (null if missing)
+        profile_data['profile_image'] = request.build_absolute_uri(staff_profile.profile_image.url) if staff_profile.profile_image else None
         
         return Response({
             'user': {
@@ -1538,8 +1536,9 @@ def staff_profile(request):
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'is_phone_verified': user.is_phone_verified,
-            },
-            'staff_profile': profile_data
+                'is_staff_member': True,
+                'staff_profile': profile_data
+            }
         }, status=status.HTTP_200_OK)
         
     except StaffProfile.DoesNotExist:

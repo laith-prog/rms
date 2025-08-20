@@ -134,7 +134,7 @@
               "mode": "raw",
               "raw": "{\n    \"phone\": \"1234567890\",\n    \"password\": \"testpass123\"\n}"
             },
-            "description": "Login for staff members (chef, waiter, manager). Returns staff_profile with profile_image and recent_shifts."
+            "description": "Login for staff (chef, waiter, manager). Returns tokens and user with nested staff_profile (matches GET /api/accounts/staff/profile/). Includes profile_image URL if available."
           }
         },
         {
@@ -144,7 +144,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{staff_token}}"
+                "value": "Bearer {{manager_token}}"
               }
             ],
             "url": {
@@ -165,34 +165,7 @@
             "description": "Create a new waiter (manager only). Supports multipart with optional profile_image; returns profile_image URL."
           }
         },
-        {
-          "name": "Create Chef",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{staff_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/accounts/staff/create-chef/",
-              "host": ["{{base_url}}"],
-              "path": ["api", "accounts", "staff", "create-chef", ""]
-            },
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                { "key": "phone", "value": "0912345672", "type": "text" },
-                { "key": "password", "value": "testpass123", "type": "text" },
-                { "key": "first_name", "value": "John", "type": "text" },
-                { "key": "last_name", "value": "Chef", "type": "text" },
-                { "key": "profile_image", "type": "file", "src": "/path/to/image.jpg" }
-              ]
-            },
-            "description": "Create a new chef (manager only). Supports multipart with optional profile_image; returns profile_image URL."
-          }
-        },
+        
         {
           "name": "Staff Logout",
           "request": {
@@ -235,6 +208,17 @@
               "raw": "{\n    \"refresh\": \"your_refresh_token\"\n}"
             },
             "description": "Get a new access token using refresh token"
+          }
+        },
+        {
+          "name": "Staff Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{staff_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/accounts/staff/profile/", "host": ["{{base_url}}"], "path": ["api", "accounts", "staff", "profile", ""] },
+            "description": "Get current staff member profile. Returns user with nested staff_profile (same shape as Staff Login). Includes profile_image URL if available."
           }
         },
         {
@@ -571,10 +555,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{manager_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -583,10 +563,16 @@
               "path": ["api", "accounts", "staff", "create-waiter", ""]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n    \"phone\": \"1234567891\",\n    \"password\": \"waiterpass123\",\n    \"first_name\": \"John\",\n    \"last_name\": \"Waiter\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                { "key": "phone", "value": "1234567891", "type": "text" },
+                { "key": "password", "value": "waiterpass123", "type": "text" },
+                { "key": "first_name", "value": "John", "type": "text" },
+                { "key": "last_name", "value": "Waiter", "type": "text" },
+                { "key": "profile_image", "type": "file", "src": "/path/to/image.jpg" }
+              ]
             },
-            "description": "Create a new waiter (manager only)"
+            "description": "Create a new waiter (manager only). Supports multipart with optional profile_image; returns profile_image URL."
           }
         },
         {
@@ -597,10 +583,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{manager_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -609,10 +591,16 @@
               "path": ["api", "accounts", "staff", "create-chef", ""]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n    \"phone\": \"1234567892\",\n    \"password\": \"chefpass123\",\n    \"first_name\": \"Maria\",\n    \"last_name\": \"Chef\"\n}"
+              "mode": "formdata",
+              "formdata": [
+                { "key": "phone", "value": "1234567892", "type": "text" },
+                { "key": "password", "value": "chefpass123", "type": "text" },
+                { "key": "first_name", "value": "Maria", "type": "text" },
+                { "key": "last_name", "value": "Chef", "type": "text" },
+                { "key": "profile_image", "type": "file", "src": "/path/to/image.jpg" }
+              ]
             },
-            "description": "Create a new chef (manager only)"
+            "description": "Create a new chef (manager only). Supports multipart with optional profile_image; returns profile_image URL."
           }
         },
         {
@@ -1453,6 +1441,42 @@
       "description": "AI-powered features for recommendations and analysis",
       "item": [
         {
+          "name": "Start Chat Session",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/api/ai/chat/start-session/", "host": ["{{base_url}}"], "path": ["api", "ai", "chat", "start-session", ""] },
+            "description": "Create a new chat session. Returns { session_id }."
+          }
+        },
+        {
+          "name": "Chat Session Messages (GET)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/ai/chat/{{session_id}}/messages/", "host": ["{{base_url}}"], "path": ["api", "ai", "chat", "{{session_id}}", "messages", ""] },
+            "description": "Get all messages for a chat session."
+          }
+        },
+        {
+          "name": "Chat Session Messages (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/api/ai/chat/{{session_id}}/messages/", "host": ["{{base_url}}"], "path": ["api", "ai", "chat", "{{session_id}}", "messages", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"Hi!\",\n  \"context\": \"optional extra context\"\n}" },
+            "description": "Send a message within an existing chat session."
+          }
+        },
+        {
           "name": "AI Chat",
           "request": {
             "method": "POST",
@@ -1554,6 +1578,58 @@
               "raw": "{\n    \"text\": \"The food was absolutely amazing and the service was excellent!\",\n    \"context\": \"review\"\n}"
             },
             "description": "Analyze sentiment and emotions in customer feedback"
+          }
+        },
+        {
+          "name": "Semantic Menu Search",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/api/ai/menu/search/semantic/", "host": ["{{base_url}}"], "path": ["api", "ai", "menu", "search", "semantic", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"query\": \"spicy seafood\",\n  \"restaurant_id\": {{restaurant_id}}\n}" },
+            "description": "Semantic search across menu items by meaning."
+          }
+        },
+        {
+          "name": "Upsell Recommendations",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/api/ai/orders/upsell/", "host": ["{{base_url}}"], "path": ["api", "ai", "orders", "upsell", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"order_id\": {{order_id}}\n}" },
+            "description": "Get upsell add-on suggestions for an order."
+          }
+        },
+        {
+          "name": "Reviews Summarize",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/api/ai/reviews/summarize/", "host": ["{{base_url}}"], "path": ["api", "ai", "reviews", "summarize", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"restaurant_id\": {{restaurant_id}},\n  \"since\": \"2024-01-01\"\n}" },
+            "description": "Summarize recent reviews for a restaurant."
+          }
+        },
+        {
+          "name": "Predict Wait Time",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/api/ai/reservations/predict-wait/", "host": ["{{base_url}}"], "path": ["api", "ai", "reservations", "predict-wait", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"restaurant_id\": {{restaurant_id}},\n  \"party_size\": 2,\n  \"time\": \"19:30\"\n}" },
+            "description": "Predict expected wait time for a given party size and time."
           }
         },
         {
