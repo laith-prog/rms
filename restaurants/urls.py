@@ -19,11 +19,6 @@ urlpatterns = [
     path('reservations/<int:reservation_id>/cancel/', views.cancel_reservation, name='cancel_reservation'),
     path('reservations/<int:reservation_id>/update-status/', views.update_reservation_status, name='update_reservation_status'),
     
-    # New reservation system endpoints
-    path('<int:restaurant_id>/available-dates/', views.available_dates, name='available_dates'),
-    path('<int:restaurant_id>/available-times/', views.available_times, name='available_times'),
-    path('<int:restaurant_id>/available-durations/', views.available_durations, name='available_durations'),
-    
     # Manager dashboard endpoints
     path('dashboard/', views.restaurant_dashboard, name='restaurant_dashboard'),
     
