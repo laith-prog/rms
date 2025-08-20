@@ -82,17 +82,25 @@ class Order(models.Model):
     
     def calculate_total(self):
         """Calculate the total cost of the order"""
+        from decimal import Decimal
+        
         self.subtotal = sum(item.item_total for item in self.items.all())
-        self.tax = self.subtotal * 0.1  # Assuming 10% tax
+        self.tax = self.subtotal * Decimal('0.1')  # Assuming 10% tax
         self.total = self.subtotal + self.tax + self.delivery_fee
         return self.total
     
     def calculate_preparation_time(self):
         """Calculate the estimated preparation time based on order items"""
         if self.items.exists():
-            prep_times = [item.menu_item.preparation_time * item.quantity for item in self.items.all()]
+            prep_times = []
+            for item in self.items.all():
+                # Ensure both values are integers to avoid type conflicts
+                prep_time = int(item.menu_item.preparation_time or 0)
+                quantity = int(item.quantity or 1)
+                prep_times.append(prep_time * quantity)
+            
             # The preparation time is the maximum of all items, not the sum
-            self.estimated_preparation_time = max(prep_times)
+            self.estimated_preparation_time = max(prep_times) if prep_times else 0
             return self.estimated_preparation_time
         return 0
 

@@ -138,6 +138,28 @@
           }
         },
         {
+          "name": "Staff Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/logout/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "logout", ""]
+            },
+            "description": "Logout for staff members with automatic clock-out if on shift"
+          }
+        },
+        {
           "name": "Refresh Token",
           "request": {
             "method": "POST",
@@ -1366,6 +1388,142 @@
               "raw": "{\n    \"is_available\": false\n}"
             },
             "description": "Toggle the availability of a menu item (chef or manager)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Services",
+      "description": "AI-powered features for recommendations and analysis",
+      "item": [
+        {
+          "name": "AI Chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/chat/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "chat", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"message\": \"Hello, can you help me with restaurant recommendations?\"\n}"
+            },
+            "description": "Chat with AI assistant (currently placeholder)"
+          }
+        },
+        {
+          "name": "Menu Recommendations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/menu-recommendations/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "menu-recommendations", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": {{restaurant_id}},\n    \"dietary_preferences\": [\"vegetarian\"],\n    \"allergies\": [\"nuts\"],\n    \"budget_range\": \"medium\"\n}"
+            },
+            "description": "Get AI-powered menu recommendations based on preferences"
+          }
+        },
+        {
+          "name": "Reservation Suggestions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/reservation-suggestions/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "reservation-suggestions", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": {{restaurant_id}},\n    \"party_size\": 4,\n    \"preferred_date\": \"2024-12-25\",\n    \"preferred_time\": \"19:00\",\n    \"special_occasion\": \"birthday\"\n}"
+            },
+            "description": "Get AI-powered reservation time and table suggestions"
+          }
+        },
+        {
+          "name": "Sentiment Analysis",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/sentiment-analysis/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "sentiment-analysis", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"text\": \"The food was absolutely amazing and the service was excellent!\",\n    \"context\": \"review\"\n}"
+            },
+            "description": "Analyze sentiment and emotions in customer feedback"
+          }
+        },
+        {
+          "name": "Basic Recommendations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/basic-recommendations/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "basic-recommendations", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"recommendation_type\": \"restaurants\",\n    \"location\": \"New York\",\n    \"preferences\": {\n        \"cuisine\": \"italian\",\n        \"price_range\": \"medium\"\n    }\n}"
+            },
+            "description": "Get basic AI-powered recommendations for restaurants, dishes, or experiences"
           }
         }
       ]
