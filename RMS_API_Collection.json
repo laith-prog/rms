@@ -134,7 +134,63 @@
               "mode": "raw",
               "raw": "{\n    \"phone\": \"1234567890\",\n    \"password\": \"testpass123\"\n}"
             },
-            "description": "Login for staff members (chef, waiter, manager)"
+            "description": "Login for staff members (chef, waiter, manager). Returns staff_profile with profile_image and recent_shifts."
+          }
+        },
+        {
+          "name": "Create Waiter",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/create-waiter/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "create-waiter", ""]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "phone", "value": "0912345671", "type": "text" },
+                { "key": "password", "value": "testpass123", "type": "text" },
+                { "key": "first_name", "value": "Jane", "type": "text" },
+                { "key": "last_name", "value": "Waiter", "type": "text" },
+                { "key": "profile_image", "type": "file", "src": "/path/to/image.jpg" }
+              ]
+            },
+            "description": "Create a new waiter (manager only). Supports multipart with optional profile_image; returns profile_image URL."
+          }
+        },
+        {
+          "name": "Create Chef",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{staff_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/staff/create-chef/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "accounts", "staff", "create-chef", ""]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "phone", "value": "0912345672", "type": "text" },
+                { "key": "password", "value": "testpass123", "type": "text" },
+                { "key": "first_name", "value": "John", "type": "text" },
+                { "key": "last_name", "value": "Chef", "type": "text" },
+                { "key": "profile_image", "type": "file", "src": "/path/to/image.jpg" }
+              ]
+            },
+            "description": "Create a new chef (manager only). Supports multipart with optional profile_image; returns profile_image URL."
           }
         },
         {
