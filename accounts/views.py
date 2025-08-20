@@ -1268,6 +1268,111 @@ def staff_login(request):
     }, status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(
+    method='post',
+    responses={
+        200: 'Staff logout successful',
+        403: 'Access denied - staff members only',
+    },
+    operation_description="Logout a staff member and optionally clock out if on shift"
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsStaffMember])
+def staff_logout(request):
+    """
+    Staff-specific logout endpoint
+    
+    This endpoint:
+    1. Clocks out the staff member if they're currently on shift
+    2. Invalidates the JWT token
+    3. Logs out the session
+    """
+    try:
+        # Get staff profile
+        staff_profile = request.user.staff_profile
+        
+        # Check if staff is on shift and clock them out
+        clock_out_message = ""
+        if staff_profile.is_on_shift:
+            from django.utils import timezone
+            now = timezone.now()
+            
+            # Find current active shift
+            current_shift = StaffShift.objects.filter(
+                staff=staff_profile,
+                is_active=True,
+                start_time__lte=now,
+                end_time__gte=now
+            ).first()
+            
+            if current_shift:
+                # End the shift early if logging out before scheduled end time
+                if now < current_shift.end_time:
+                    current_shift.end_time = now
+                    current_shift.save()
+                
+                # Update staff shift status
+                staff_profile.is_on_shift = False
+                staff_profile.save()
+                
+                clock_out_message = " You have been automatically clocked out."
+        
+        # Handle JWT token blacklisting (same as general logout)
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        token_message = ""
+        
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]
+            
+            try:
+                from rest_framework_simplejwt.tokens import AccessToken
+                from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+                from datetime import datetime
+                import pytz
+                
+                # Get token data
+                token_obj = AccessToken(token)
+                expires_at = datetime.fromtimestamp(token_obj['exp'], tz=pytz.UTC)
+                
+                # Find or create the outstanding token
+                outstanding_token, created = OutstandingToken.objects.get_or_create(
+                    jti=token_obj['jti'],
+                    defaults={
+                        'token': token,
+                        'user': request.user,
+                        'expires_at': expires_at
+                    }
+                )
+                
+                # Blacklist the token if not already blacklisted
+                if not BlacklistedToken.objects.filter(token=outstanding_token).exists():
+                    BlacklistedToken.objects.create(token=outstanding_token)
+                    token_message = " Your access token has been invalidated."
+                
+            except Exception as e:
+                token_message = f" Token invalidation failed: {str(e)}"
+        
+        # Perform Django session logout
+        from django.contrib.auth import logout
+        logout(request)
+        
+        return Response({
+            'success': f'Staff logout successful.{clock_out_message}{token_message}',
+            'clocked_out': bool(clock_out_message),
+            'staff_role': staff_profile.role,
+            'restaurant': staff_profile.restaurant.name
+        }, status=status.HTTP_200_OK)
+        
+    except StaffProfile.DoesNotExist:
+        return Response({
+            'error': 'Staff profile not found'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({
+            'error': f'Logout failed: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 def get_role_capabilities(role):
     """
     Return role-specific capabilities and permissions
