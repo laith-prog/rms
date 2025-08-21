@@ -1647,10 +1647,49 @@ def update_staff_profile(request):
         if serializer.is_valid():
             serializer.save()
             
-            # Return updated profile data
+            # Return updated profile data in the same format as staff_profile endpoint
+            restaurant = staff_profile.restaurant
+            
+            # Get shift history (last 10 shifts)
+            recent_shifts = StaffShift.objects.filter(
+                staff=staff_profile
+            ).order_by('-created_at')[:10]
+            
+            shifts_data = []
+            for shift in recent_shifts:
+                shifts_data.append({
+                    'id': shift.id,
+                    'start_time': shift.start_time.isoformat(),
+                    'end_time': shift.end_time.isoformat(),
+                    'is_active': shift.is_active,
+                    'created_at': shift.created_at.isoformat(),
+                })
+            
+            # Build response data
+            profile_data = {
+                'id': staff_profile.id,
+                'role': staff_profile.role,
+                'is_on_shift': staff_profile.is_on_shift,
+                'created_at': staff_profile.created_at.isoformat(),
+                'updated_at': staff_profile.updated_at.isoformat(),
+                'restaurant_id': restaurant.id,
+                'recent_shifts': shifts_data
+            }
+            
+            # Always include profile_image key (null if missing)
+            profile_data['profile_image'] = request.build_absolute_uri(staff_profile.profile_image.url) if staff_profile.profile_image else None
+            
             return Response({
                 'success': 'Profile updated successfully',
-                'staff_profile': serializer.data
+                'user': {
+                    'id': user.id,
+                    'phone': user.phone,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'is_phone_verified': user.is_phone_verified,
+                    'is_staff_member': True,
+                    'staff_profile': profile_data
+                }
             }, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
