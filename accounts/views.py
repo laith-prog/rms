@@ -1211,7 +1211,6 @@ def staff_login(request):
     Authenticates staff members and returns role-specific information including:
     - Staff profile details (role, restaurant, shift status)
     - Restaurant information
-    - Role-specific permissions and capabilities
     """
     serializer = StaffLoginSerializer(data=request.data)
     if not serializer.is_valid():
@@ -1248,12 +1247,23 @@ def staff_login(request):
                 'name': restaurant.name,
                 'address': restaurant.address,
                 'phone': restaurant.phone,
+                'email': restaurant.email,
+                'description': restaurant.description,
+                'opening_time': restaurant.opening_time.strftime('%H:%M') if restaurant.opening_time else None,
+                'closing_time': restaurant.closing_time.strftime('%H:%M') if restaurant.closing_time else None,
+                'logo': request.build_absolute_uri(restaurant.logo.url) if restaurant.logo else None,
+                'cover_image': request.build_absolute_uri(restaurant.cover_image.url) if restaurant.cover_image else None,
+                'average_rating': float(restaurant.average_rating),
+                'offers_dine_in': restaurant.offers_dine_in,
+                'offers_takeaway': restaurant.offers_takeaway,
+                'offers_delivery': restaurant.offers_delivery,
+                'is_active': restaurant.is_active,
             }
         }
         
-        # Add role-specific capabilities
-        role_capabilities = get_role_capabilities(staff_profile.role)
-        staff_data['capabilities'] = role_capabilities
+        # Role-specific capabilities removed as requested
+        # role_capabilities = get_role_capabilities(staff_profile.role)
+        # staff_data['capabilities'] = role_capabilities
         
         # Get current shift information if on shift
         if staff_profile.is_on_shift:
@@ -1479,8 +1489,7 @@ def staff_profile(request):
     """
     Get current staff member's profile information
     
-    Returns detailed staff profile including role, restaurant, shift status,
-    and role-specific capabilities.
+    Returns detailed staff profile including role, restaurant, and shift status.
     """
     user = request.user
     
@@ -1515,9 +1524,20 @@ def staff_profile(request):
                 'name': restaurant.name,
                 'address': restaurant.address,
                 'phone': restaurant.phone,
+                'email': restaurant.email,
+                'description': restaurant.description,
+                'opening_time': restaurant.opening_time.strftime('%H:%M') if restaurant.opening_time else None,
+                'closing_time': restaurant.closing_time.strftime('%H:%M') if restaurant.closing_time else None,
+                'logo': request.build_absolute_uri(restaurant.logo.url) if restaurant.logo else None,
+                'cover_image': request.build_absolute_uri(restaurant.cover_image.url) if restaurant.cover_image else None,
+                'average_rating': float(restaurant.average_rating),
+                'offers_dine_in': restaurant.offers_dine_in,
+                'offers_takeaway': restaurant.offers_takeaway,
+                'offers_delivery': restaurant.offers_delivery,
+                'is_active': restaurant.is_active,
             },
-            'recent_shifts': shifts_data,
-            'capabilities': get_role_capabilities(staff_profile.role)
+            'recent_shifts': shifts_data
+            # 'capabilities': get_role_capabilities(staff_profile.role)  # Removed as requested
         }
         
         # Always include profile_image key (null if missing)

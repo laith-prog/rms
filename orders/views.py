@@ -6,6 +6,7 @@ from rest_framework import status
 from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from decimal import Decimal
 
 from .models import Order, OrderItem, OrderStatusUpdate
 from restaurants.models import Restaurant, MenuItem
@@ -167,7 +168,7 @@ def create_order(request):
         return Response({'error': 'Order items are required'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Validate items and calculate total
-    subtotal = 0
+    subtotal = Decimal('0.00')
     items_to_create = []
     
     for item_data in items_data:
@@ -187,7 +188,7 @@ def create_order(request):
         try:
             menu_item = MenuItem.objects.get(id=item_id, restaurant=restaurant, is_active=True)
             item_price = menu_item.price
-            item_total = item_price * quantity
+            item_total = item_price * Decimal(str(quantity))
             subtotal += item_total
             
             items_to_create.append({
@@ -202,8 +203,8 @@ def create_order(request):
                              status=status.HTTP_400_BAD_REQUEST)
     
     # Calculate tax and total
-    tax = subtotal * 0.1  # Assuming 10% tax
-    delivery_fee = 5.0 if order_type == 'delivery' else 0  # Assuming $5 delivery fee
+    tax = subtotal * Decimal('0.10')  # Assuming 10% tax
+    delivery_fee = Decimal('5.00') if order_type == 'delivery' else Decimal('0.00')  # Assuming $5 delivery fee
     total = subtotal + tax + delivery_fee
     
     # Create the order

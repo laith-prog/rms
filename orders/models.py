@@ -117,7 +117,8 @@ class OrderItem(models.Model):
     
     @property
     def item_total(self):
-        return self.item_price * self.quantity
+        from decimal import Decimal
+        return self.item_price * Decimal(str(self.quantity))
     
     def __str__(self):
         return f"{self.quantity}x {self.menu_item.name} - Order #{self.order.id}"
