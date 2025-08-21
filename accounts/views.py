@@ -1242,11 +1242,7 @@ def staff_login(request):
             'id': staff_profile.id,
             'role': staff_profile.role,
             'is_on_shift': staff_profile.is_on_shift,
-            'restaurant': {
-                'name': restaurant.name,
-                'address': restaurant.address,
-                'phone': restaurant.phone,
-            }
+            'restaurant_id': restaurant.id
         }
         
         # Role-specific capabilities removed as requested
@@ -1507,11 +1503,7 @@ def staff_profile(request):
             'is_on_shift': staff_profile.is_on_shift,
             'created_at': staff_profile.created_at.isoformat(),
             'updated_at': staff_profile.updated_at.isoformat(),
-            'restaurant': {
-                'name': restaurant.name,
-                'address': restaurant.address,
-                'phone': restaurant.phone,
-            },
+            'restaurant_id': restaurant.id,
             'recent_shifts': shifts_data
             # 'capabilities': get_role_capabilities(staff_profile.role)  # Removed as requested
         }
