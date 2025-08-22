@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404
-from django.db.models import Avg
+from django.db.models import Avg, Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -198,6 +198,33 @@ def restaurant_reviews(request, restaurant_id):
     return Response(data, status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('restaurant_id', openapi.IN_PATH, description="Restaurant ID", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('date', openapi.IN_QUERY, description="Date (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+        openapi.Parameter('time', openapi.IN_QUERY, description="Time (HH:MM)", type=openapi.TYPE_STRING),
+        openapi.Parameter('party_size', openapi.IN_QUERY, description="Number of guests (default: 2)", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('duration', openapi.IN_QUERY, description="Duration in hours (default: 2)", type=openapi.TYPE_INTEGER),
+    ],
+    responses={
+        200: openapi.Response(
+            description="Available tables for the specified time slot",
+            schema=openapi.Schema(
+                type=openapi.TYPE_ARRAY,
+                items=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'table_number': openapi.Schema(type=openapi.TYPE_STRING),
+                        'capacity': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    }
+                )
+            )
+        )
+    },
+    operation_description="Get available tables for a specific date, time, party size, and duration"
+)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def available_tables(request, restaurant_id):
@@ -227,6 +254,9 @@ def available_tables(request, restaurant_id):
     # Get party size (default to 2)
     party_size = int(request.GET.get('party_size', 2))
     
+    # Get duration (default to 2 hours)
+    duration = int(request.GET.get('duration', 2))
+    
     # Find tables that are big enough and not reserved at the requested time
     tables = Table.objects.filter(
         restaurant=restaurant,
@@ -234,13 +264,35 @@ def available_tables(request, restaurant_id):
         capacity__gte=party_size
     )
     
-    # Exclude tables that are already reserved at this time
-    reserved_table_ids = Reservation.objects.filter(
-        restaurant=restaurant,
-        reservation_date=reservation_date,
-        status__in=['pending', 'confirmed'],
-        table__in=tables
-    ).values_list('table_id', flat=True)
+    # Calculate end time based on duration
+    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    end_datetime = reservation_datetime + timedelta(hours=duration)
+    end_time = end_datetime.time()
+    
+    # Exclude tables that are already reserved during the requested time period
+    # We need to check for overlapping reservations considering duration
+    reserved_table_ids = []
+    
+    for table in tables:
+        # Get all reservations for this table on the requested date
+        existing_reservations = Reservation.objects.filter(
+            restaurant=restaurant,
+            reservation_date=reservation_date,
+            status__in=['pending', 'confirmed'],
+            table=table
+        )
+        
+        # Check if any existing reservation overlaps with our requested time slot
+        for reservation in existing_reservations:
+            existing_start = reservation.reservation_time
+            existing_duration = getattr(reservation, 'duration_hours', 2)  # Default to 2 hours if not set
+            existing_end_datetime = datetime.combine(reservation_date, existing_start) + timedelta(hours=existing_duration)
+            existing_end = existing_end_datetime.time()
+            
+            # Check for overlap: new reservation overlaps if it starts before existing ends and ends after existing starts
+            if (reservation_time < existing_end and end_time > existing_start):
+                reserved_table_ids.append(table.id)
+                break
     
     available_tables = tables.exclude(id__in=reserved_table_ids)
     
@@ -1383,7 +1435,7 @@ def available_dates(request, restaurant_id):
                             type=openapi.TYPE_OBJECT,
                             properties={
                                 'time': openapi.Schema(type=openapi.TYPE_STRING),
-                                'available_tables': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                'display_time': openapi.Schema(type=openapi.TYPE_STRING),
                             }
                         )
                     )
@@ -1456,7 +1508,6 @@ def available_times(request, restaurant_id):
         if available_count > 0:
             available_times.append({
                 'time': slot_time.strftime('%H:%M'),
-                'available_tables': available_count,
                 'display_time': slot_time.strftime('%I:%M %p')
             })
             
