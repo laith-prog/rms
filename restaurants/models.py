@@ -118,10 +118,19 @@ class Reservation(models.Model):
     party_size = models.IntegerField()
     reservation_date = models.DateField()
     reservation_time = models.TimeField()
+    duration_hours = models.IntegerField(default=1, help_text="Duration of reservation in hours")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     special_requests = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    @property
+    def end_time(self):
+        """Calculate the end time of the reservation"""
+        from datetime import datetime, timedelta
+        start_datetime = datetime.combine(self.reservation_date, self.reservation_time)
+        end_datetime = start_datetime + timedelta(hours=self.duration_hours)
+        return end_datetime.time()
     
     def __str__(self):
         return f"{self.customer} - {self.restaurant.name} - {self.reservation_date} {self.reservation_time}"

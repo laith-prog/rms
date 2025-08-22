@@ -255,6 +255,56 @@ def available_tables(request, restaurant_id):
     return Response(data, status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['table_id', 'party_size', 'date', 'time'],
+        properties={
+            'table_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Table ID"),
+            'party_size': openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of guests"),
+            'date': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE, description="Reservation date (YYYY-MM-DD)"),
+            'time': openapi.Schema(type=openapi.TYPE_STRING, description="Reservation time (HH:MM)"),
+            'duration_hours': openapi.Schema(type=openapi.TYPE_INTEGER, default=1, description="Duration in hours (default: 1)"),
+            'special_requests': openapi.Schema(type=openapi.TYPE_STRING, description="Special requests (optional)"),
+        }
+    ),
+    responses={
+        201: openapi.Response(
+            description="Reservation created successfully",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'success': openapi.Schema(type=openapi.TYPE_STRING),
+                    'reservation': openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'status': openapi.Schema(type=openapi.TYPE_STRING),
+                            'date': openapi.Schema(type=openapi.TYPE_STRING),
+                            'time': openapi.Schema(type=openapi.TYPE_STRING),
+                            'duration_hours': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'party_size': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'table': openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                    'number': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'capacity': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                }
+                            ),
+                            'special_requests': openapi.Schema(type=openapi.TYPE_STRING),
+                        }
+                    )
+                }
+            )
+        ),
+        400: openapi.Response(description="Bad request - validation errors"),
+        403: openapi.Response(description="Forbidden - insufficient permissions"),
+        404: openapi.Response(description="Restaurant or table not found"),
+    },
+    operation_description="Create a new table reservation"
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_reservation(request, restaurant_id):
@@ -314,13 +364,33 @@ def create_reservation(request, restaurant_id):
     if reservation_date < timezone.now().date():
         return Response({'error': 'Cannot make reservation for past date'}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Check if table is already reserved
-    if Reservation.objects.filter(
-            table=table,
-            reservation_date=reservation_date,
-            status__in=['pending', 'confirmed']).exists():
-        return Response({'error': 'This table is already reserved for the selected time'}, 
-                         status=status.HTTP_400_BAD_REQUEST)
+    # Get duration (default to 1 hour if not provided)
+    duration = request.data.get('duration_hours', 1)
+    try:
+        duration = int(duration)
+        if duration < 1:
+            duration = 1
+    except (ValueError, TypeError):
+        duration = 1
+    
+    # Check for conflicting reservations (considering duration)
+    end_datetime = datetime.combine(reservation_date, reservation_time) + timedelta(hours=duration)
+    end_time = end_datetime.time()
+    
+    conflicting_reservations = Reservation.objects.filter(
+        table=table,
+        reservation_date=reservation_date,
+        status__in=['pending', 'confirmed']
+    )
+    
+    for existing_reservation in conflicting_reservations:
+        existing_end_time = existing_reservation.end_time
+        # Check for time overlap
+        if (reservation_time < existing_end_time and 
+            end_time > existing_reservation.reservation_time):
+            return Response({
+                'error': f'Table is already reserved from {existing_reservation.reservation_time.strftime("%H:%M")} to {existing_end_time.strftime("%H:%M")}'
+            }, status=status.HTTP_400_BAD_REQUEST)
     
     # Create the reservation
     reservation = Reservation.objects.create(
@@ -330,6 +400,7 @@ def create_reservation(request, restaurant_id):
         party_size=party_size,
         reservation_date=reservation_date,
         reservation_time=reservation_time,
+        duration_hours=duration,
         status='pending',
         special_requests=request.data.get('special_requests', '')
     )
@@ -349,8 +420,20 @@ def create_reservation(request, restaurant_id):
     
     return Response({
         'success': 'Reservation created successfully',
-        'reservation_id': reservation.id,
-        'status': reservation.status
+        'reservation': {
+            'id': reservation.id,
+            'status': reservation.status,
+            'date': reservation.reservation_date.strftime('%Y-%m-%d'),
+            'time': reservation.reservation_time.strftime('%H:%M'),
+            'duration_hours': reservation.duration_hours,
+            'party_size': reservation.party_size,
+            'table': {
+                'id': reservation.table.id,
+                'number': reservation.table.table_number,
+                'capacity': reservation.table.capacity,
+            },
+            'special_requests': reservation.special_requests,
+        }
     }, status=status.HTTP_201_CREATED)
 
 
@@ -1461,12 +1544,13 @@ def available_tables_by_floor(request, restaurant_id):
         return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Check if date/time is in the past
-    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    reservation_datetime = timezone.make_aware(datetime.combine(reservation_date, reservation_time))
     if reservation_datetime < timezone.now():
         return Response({'error': 'Cannot check availability for past date/time'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Calculate end time for the reservation
-    end_datetime = reservation_datetime + timedelta(hours=duration)
+    reservation_datetime_naive = datetime.combine(reservation_date, reservation_time)
+    end_datetime = reservation_datetime_naive + timedelta(hours=duration)
     end_time = end_datetime.time()
     
     # Find tables that can accommodate the party size
@@ -1664,12 +1748,13 @@ def create_enhanced_reservation(request, restaurant_id):
         return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Check if date/time is in the past
-    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    reservation_datetime = timezone.make_aware(datetime.combine(reservation_date, reservation_time))
     if reservation_datetime < timezone.now():
         return Response({'error': 'Cannot make reservation for past date/time'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Calculate end time
-    end_datetime = reservation_datetime + timedelta(hours=duration)
+    reservation_datetime_naive = datetime.combine(reservation_date, reservation_time)
+    end_datetime = reservation_datetime_naive + timedelta(hours=duration)
     end_time = end_datetime.time()
     
     # Check for conflicting reservations
@@ -1805,7 +1890,7 @@ def available_durations(request, restaurant_id):
         return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Check if date/time is in the past
-    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    reservation_datetime = timezone.make_aware(datetime.combine(reservation_date, reservation_time))
     if reservation_datetime < timezone.now():
         return Response({'error': 'Cannot check availability for past date/time'}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -1824,14 +1909,14 @@ def available_durations(request, restaurant_id):
     
     # Calculate maximum possible duration based on restaurant closing time
     closing_time = restaurant.closing_time
-    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    reservation_datetime_naive = datetime.combine(reservation_date, reservation_time)
     closing_datetime = datetime.combine(reservation_date, closing_time)
     
     # If closing time is earlier than reservation time (next day closing), add a day
     if closing_time < reservation_time:
         closing_datetime += timedelta(days=1)
     
-    max_duration_hours = int((closing_datetime - reservation_datetime).total_seconds() / 3600)
+    max_duration_hours = int((closing_datetime - reservation_datetime_naive).total_seconds() / 3600)
     
     # Limit to reasonable maximum (e.g., 6 hours)
     max_duration_hours = min(max_duration_hours, 6)
@@ -1847,7 +1932,7 @@ def available_durations(request, restaurant_id):
     
     for duration in range(1, max_duration_hours + 1):
         # Calculate end time for this duration
-        end_datetime = reservation_datetime + timedelta(hours=duration)
+        end_datetime = reservation_datetime_naive + timedelta(hours=duration)
         end_time = end_datetime.time()
         
         # Find tables that are NOT reserved during this entire time period
