@@ -718,25 +718,33 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/available-tables/?date=2025-08-15&time=19:00&party_size=4",
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/available-tables/?date=2025-08-15&time=19:00&party_size=4&duration=2",
               "host": ["{{base_url}}"],
               "path": ["api", "restaurants", "{{restaurant_id}}", "available-tables", ""],
               "query": [
                 {
                   "key": "date",
-                  "value": "2025-08-15"
+                  "value": "2025-08-15",
+                  "description": "Date in YYYY-MM-DD format (required)"
                 },
                 {
                   "key": "time",
-                  "value": "19:00"
+                  "value": "19:00",
+                  "description": "Time in HH:MM format (required)"
                 },
                 {
                   "key": "party_size",
-                  "value": "4"
+                  "value": "4",
+                  "description": "Number of guests (optional, default: 2)"
+                },
+                {
+                  "key": "duration",
+                  "value": "2",
+                  "description": "Duration in hours (optional, default: 2)"
                 }
               ]
             },
-            "description": "Get available tables for a specific date and time"
+            "description": "Get available tables for a specific date, time, party size, and duration. Now properly handles reservation overlaps based on duration."
           }
         },
         {
@@ -879,7 +887,7 @@
                 }
               ]
             },
-            "description": "Get available times for reservation on a specific date"
+            "description": "Get available times for reservation on a specific date. Returns time slots without table count information."
           }
         },
         {
