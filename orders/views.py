@@ -32,6 +32,8 @@ def order_list(request):
             'restaurant': {
                 'id': order.restaurant.id,
                 'name': order.restaurant.name,
+                'logo': order.restaurant.logo.url if order.restaurant.logo else None,
+                'cover_image': order.restaurant.cover_image.url if order.restaurant.cover_image else None,
             },
             'order_type': order.get_order_type_display(),
             'status': order.get_status_display(),
@@ -292,6 +294,7 @@ def order_detail(request, order_id):
             'price': item.item_price,
             'total': item.item_total,
             'special_instructions': item.special_instructions,
+            'image': item.menu_item.image.url if item.menu_item.image else None,
         })
     
     # Get status updates
@@ -314,6 +317,8 @@ def order_detail(request, order_id):
             'name': order.restaurant.name,
             'address': order.restaurant.address,
             'phone': order.restaurant.phone,
+            'logo': order.restaurant.logo.url if order.restaurant.logo else None,
+            'cover_image': order.restaurant.cover_image.url if order.restaurant.cover_image else None,
         },
         'order_type': order.get_order_type_display(),
         'status': order.get_status_display(),
@@ -603,6 +608,7 @@ def chef_orders(request):
                 'name': item.menu_item.name,
                 'quantity': item.quantity,
                 'special_instructions': item.special_instructions,
+                'image': item.menu_item.image.url if item.menu_item.image else None,
             })
         
         data.append({
