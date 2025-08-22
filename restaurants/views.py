@@ -1733,3 +1733,174 @@ def create_enhanced_reservation(request, restaurant_id):
             'special_requests': reservation.special_requests,
         }
     }, status=status.HTTP_201_CREATED)
+
+
+@swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter('restaurant_id', openapi.IN_PATH, description="Restaurant ID", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('date', openapi.IN_QUERY, description="Date (YYYY-MM-DD)", type=openapi.TYPE_STRING, required=True),
+        openapi.Parameter('time', openapi.IN_QUERY, description="Time (HH:MM)", type=openapi.TYPE_STRING, required=True),
+        openapi.Parameter('party_size', openapi.IN_QUERY, description="Party size", type=openapi.TYPE_INTEGER, default=1),
+    ],
+    responses={
+        200: openapi.Response(
+            description="Available durations for the specified date, time, and party size",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'available_durations': openapi.Schema(
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'duration': openapi.Schema(type=openapi.TYPE_INTEGER, description="Duration in hours"),
+                                'end_time': openapi.Schema(type=openapi.TYPE_STRING, description="End time (HH:MM)"),
+                                'available_tables': openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of available tables"),
+                                'display_text': openapi.Schema(type=openapi.TYPE_STRING, description="Human-readable duration text"),
+                            }
+                        )
+                    ),
+                    'date': openapi.Schema(type=openapi.TYPE_STRING),
+                    'time': openapi.Schema(type=openapi.TYPE_STRING),
+                    'party_size': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'restaurant': openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'name': openapi.Schema(type=openapi.TYPE_STRING),
+                            'closing_time': openapi.Schema(type=openapi.TYPE_STRING),
+                        }
+                    )
+                }
+            )
+        ),
+        400: openapi.Response(description="Bad request - missing or invalid parameters"),
+        404: openapi.Response(description="Restaurant not found"),
+    },
+    operation_description="Get available reservation durations for a specific date, time, and party size"
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def available_durations(request, restaurant_id):
+    """
+    Get available reservation durations for a specific date, time, and party size.
+    Shows how long a reservation can be based on restaurant closing time and other reservations.
+    """
+    restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
+    
+    # Get parameters
+    date_str = request.GET.get('date')
+    time_str = request.GET.get('time')
+    party_size = int(request.GET.get('party_size', 1))
+    
+    # Validate required parameters
+    if not date_str or not time_str:
+        return Response({'error': 'Date and time are required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        reservation_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        reservation_time = datetime.strptime(time_str, '%H:%M').time()
+    except ValueError:
+        return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if date/time is in the past
+    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    if reservation_datetime < timezone.now():
+        return Response({'error': 'Cannot check availability for past date/time'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find tables that can accommodate the party size
+    suitable_tables = Table.objects.filter(
+        restaurant=restaurant,
+        is_active=True,
+        capacity__gte=party_size
+    )
+    
+    if not suitable_tables.exists():
+        return Response({
+            'available_durations': [],
+            'message': f'No tables available for {party_size} guests'
+        }, status=status.HTTP_200_OK)
+    
+    # Calculate maximum possible duration based on restaurant closing time
+    closing_time = restaurant.closing_time
+    reservation_datetime = datetime.combine(reservation_date, reservation_time)
+    closing_datetime = datetime.combine(reservation_date, closing_time)
+    
+    # If closing time is earlier than reservation time (next day closing), add a day
+    if closing_time < reservation_time:
+        closing_datetime += timedelta(days=1)
+    
+    max_duration_hours = int((closing_datetime - reservation_datetime).total_seconds() / 3600)
+    
+    # Limit to reasonable maximum (e.g., 6 hours)
+    max_duration_hours = min(max_duration_hours, 6)
+    
+    if max_duration_hours < 1:
+        return Response({
+            'available_durations': [],
+            'message': 'No time available before restaurant closes'
+        }, status=status.HTTP_200_OK)
+    
+    # Check each possible duration (1 to max_duration_hours)
+    available_durations = []
+    
+    for duration in range(1, max_duration_hours + 1):
+        # Calculate end time for this duration
+        end_datetime = reservation_datetime + timedelta(hours=duration)
+        end_time = end_datetime.time()
+        
+        # Find tables that are NOT reserved during this entire time period
+        # Get all reservations for this date
+        all_reservations = Reservation.objects.filter(
+            restaurant=restaurant,
+            reservation_date=reservation_date,
+            status__in=['pending', 'confirmed']
+        )
+        
+        # Check for overlapping reservations manually
+        conflicting_reservation_ids = []
+        for res in all_reservations:
+            # Calculate existing reservation end time
+            res_start = datetime.combine(reservation_date, res.reservation_time)
+            res_end = res_start + timedelta(hours=res.duration_hours)
+            
+            # Calculate our proposed reservation times
+            our_start = datetime.combine(reservation_date, reservation_time)
+            our_end = datetime.combine(reservation_date, end_time)
+            
+            # Check for overlap: reservations overlap if one starts before the other ends
+            if (our_start < res_end) and (our_end > res_start):
+                conflicting_reservation_ids.append(res.id)
+        
+        conflicting_reservations = Reservation.objects.filter(id__in=conflicting_reservation_ids)
+        
+        reserved_table_ids = conflicting_reservations.values_list('table_id', flat=True)
+        available_tables_for_duration = suitable_tables.exclude(id__in=reserved_table_ids)
+        available_count = available_tables_for_duration.count()
+        
+        if available_count > 0:
+            # Create display text
+            if duration == 1:
+                display_text = "1 hour"
+            else:
+                display_text = f"{duration} hours"
+            
+            available_durations.append({
+                'duration': duration,
+                'end_time': end_time.strftime('%H:%M'),
+                'available_tables': available_count,
+                'display_text': display_text
+            })
+    
+    return Response({
+        'available_durations': available_durations,
+        'date': reservation_date.strftime('%Y-%m-%d'),
+        'time': reservation_time.strftime('%H:%M'),
+        'party_size': party_size,
+        'restaurant': {
+            'id': restaurant.id,
+            'name': restaurant.name,
+            'closing_time': restaurant.closing_time.strftime('%H:%M'),
+        }
+    }, status=status.HTTP_200_OK)
