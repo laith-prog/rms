@@ -1494,6 +1494,19 @@ def available_times(request, restaurant_id):
     while current_time < end_time:
         slot_time = current_time.time()
         
+        # Skip past time slots if reservation date is today
+        if reservation_date == timezone.now().date():
+            current_datetime = timezone.now()
+            slot_datetime = datetime.combine(reservation_date, slot_time)
+            # Make slot_datetime timezone aware for comparison
+            if timezone.is_naive(slot_datetime):
+                slot_datetime = timezone.make_aware(slot_datetime)
+            
+            # Skip if this time slot is in the past
+            if slot_datetime <= current_datetime:
+                current_time += timedelta(hours=1)
+                continue
+        
         # Check available tables at this time
         reserved_tables = Reservation.objects.filter(
             restaurant=restaurant,
