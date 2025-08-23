@@ -10,6 +10,9 @@ pillow==11.3.0
 # Environment Variables
 python-dotenv==1.0.1
 
+# Timezone handling
+pytz==2023.3
+
 # API Documentation
 drf-yasg==1.21.10
 

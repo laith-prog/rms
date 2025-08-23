@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+import pytz
 
 from .models import Restaurant, Category, MenuItem, Table, Reservation, Review, ReservationStatusUpdate
 from accounts.models import User, StaffProfile
@@ -1495,15 +1496,18 @@ def available_times(request, restaurant_id):
         slot_time = current_time.time()
         
         # Skip past time slots if reservation date is today
-        if reservation_date == timezone.now().date():
-            current_datetime = timezone.now()
+        # Use GMT+3 timezone for time comparisons
+        gmt_plus_3 = pytz.timezone('Etc/GMT-3')  # Note: GMT-3 means +3 hours from GMT
+        current_datetime_gmt3 = timezone.now().astimezone(gmt_plus_3)
+        current_date_gmt3 = current_datetime_gmt3.date()
+        
+        if reservation_date == current_date_gmt3:
             slot_datetime = datetime.combine(reservation_date, slot_time)
-            # Make slot_datetime timezone aware for comparison
-            if timezone.is_naive(slot_datetime):
-                slot_datetime = timezone.make_aware(slot_datetime)
+            # Make slot_datetime timezone aware in GMT+3
+            slot_datetime_gmt3 = gmt_plus_3.localize(slot_datetime)
             
             # Skip if this time slot is in the past
-            if slot_datetime <= current_datetime:
+            if slot_datetime_gmt3 <= current_datetime_gmt3:
                 current_time += timedelta(hours=1)
                 continue
         
