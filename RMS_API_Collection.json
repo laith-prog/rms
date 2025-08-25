@@ -1,8 +1,9 @@
 {
   "info": {
     "name": "Restaurant Management System API",
-    "description": "Complete API collection for the Restaurant Management System",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "description": "Complete API collection for the Restaurant Management System with AI-powered features including smart table selection, chat assistant, and intelligent recommendations",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.1.0"
   },
   "item": [
     {
@@ -820,7 +821,7 @@
       "description": "Reservation management endpoints",
       "item": [
         {
-          "name": "Create Reservation",
+          "name": "Create Reservation (Customized)",
           "request": {
             "method": "POST",
             "header": [
@@ -840,9 +841,35 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"restaurant_id\": \"{{restaurant_id}}\",\n    \"table_id\": \"{{table_id}}\",\n    \"date\": \"2025-08-15\",\n    \"time\": \"19:00\",\n    \"party_size\": 4,\n    \"special_requests\": \"Window seat if possible\",\n    \"duration_hours\": 2\n}"
+              "raw": "{\n    \"selection_type\": \"customized\",\n    \"table_id\": \"{{table_id}}\",\n    \"date\": \"2025-08-26\",\n    \"time\": \"19:00\",\n    \"party_size\": 4,\n    \"special_requests\": \"Window seat if possible\",\n    \"duration_hours\": 2\n}"
             },
-            "description": "Create a new reservation"
+            "description": "Create a new reservation with manual table selection (customized mode)"
+          }
+        },
+        {
+          "name": "Create Smart AI Reservation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/restaurants/{{restaurant_id}}/reserve/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "restaurants", "{{restaurant_id}}", "reserve", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"selection_type\": \"smart\",\n    \"date\": \"2025-08-26\",\n    \"time\": \"19:00\",\n    \"party_size\": 2,\n    \"duration_hours\": 2,\n    \"special_requests\": \"Window seat if possible\",\n    \"special_occasion\": \"anniversary\",\n    \"user_preferences\": {\n        \"quiet_area\": true,\n        \"window_seat\": true,\n        \"romantic_setting\": true,\n        \"near_kitchen\": false,\n        \"accessible\": false\n    }\n}"
+            },
+            "description": "Create a new reservation with AI-powered intelligent table selection. The AI considers party size, user preferences, special occasions, table popularity, and capacity utilization to select the optimal table. Includes fallback to random selection if AI is unavailable.\n\nResponse includes:\n- reservation: Standard reservation object with selected table\n- ai_selection: AI decision details including:\n  * method: 'ai' or 'fallback'\n  * reasoning: AI explanation for table choice\n  * confidence: AI confidence score (0-1)\n  * response_time_ms: AI processing time\n  * factors_considered: Array of factors AI evaluated\n  * alternative_table_id: Backup table suggestion (optional)\n\nExample Response:\n{\n  \"success\": \"Reservation created successfully\",\n  \"reservation\": {\n    \"id\": 1,\n    \"status\": \"pending\",\n    \"selection_type\": \"smart\",\n    \"table\": {\n      \"id\": 5,\n      \"number\": \"5\",\n      \"capacity\": 4\n    }\n  },\n  \"ai_selection\": {\n    \"method\": \"ai\",\n    \"reasoning\": \"Table 5 has optimal capacity utilization and meets user preferences for quiet area and window seat.\",\n    \"confidence\": 0.85,\n    \"response_time_ms\": 757,\n    \"factors_considered\": [\"capacity_utilization\", \"table_popularity\", \"user_preferences\"],\n    \"alternative_table_id\": 3\n  }\n}"
           }
         },
         {
@@ -1042,6 +1069,90 @@
               "raw": "{\n    \"status\": \"confirmed\"\n}"
             },
             "description": "Update the status of a reservation (staff only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Services",
+      "description": "AI-powered features and services",
+      "item": [
+        {
+          "name": "Chat with AI Assistant",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/chat/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "chat", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"message\": \"What are your most popular dishes?\",\n    \"restaurant_id\": \"{{restaurant_id}}\",\n    \"context\": \"menu_inquiry\"\n}"
+            },
+            "description": "Chat with AI assistant about restaurants, menus, and recommendations"
+          }
+        },
+        {
+          "name": "Get AI Recommendations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/recommendations/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "recommendations", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"context\": \"restaurant_discovery\",\n    \"preferences\": {\n        \"cuisine_type\": \"Italian\",\n        \"price_range\": \"moderate\",\n        \"dietary_restrictions\": [\"vegetarian\"]\n    },\n    \"location\": {\n        \"latitude\": 40.7128,\n        \"longitude\": -74.0060\n    }\n}"
+            },
+            "description": "Get AI-powered recommendations for restaurants, dishes, or experiences"
+          }
+        },
+        {
+          "name": "Test AI Table Selection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/test-table-selection/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "ai", "test-table-selection", ""]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"restaurant_id\": \"{{restaurant_id}}\",\n    \"party_size\": 2,\n    \"date\": \"2025-08-26\",\n    \"time\": \"19:00\",\n    \"duration_hours\": 2,\n    \"special_occasion\": \"birthday\",\n    \"user_preferences\": {\n        \"quiet_area\": true,\n        \"window_seat\": false,\n        \"accessible\": false\n    }\n}"
+            },
+            "description": "Test AI table selection algorithm without creating a reservation. Returns AI reasoning, confidence score, and selected table information."
           }
         }
       ]
