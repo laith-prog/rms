@@ -55,6 +55,7 @@ urlpatterns = [
     path('api/restaurants/', include('restaurants.urls')),
     path('api/orders/', include('orders.urls')),
     path('api/ai/', include('ai.urls')),
+    path('api/notifications/', include('notifications.urls')),
     
     # JWT Authentication
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),

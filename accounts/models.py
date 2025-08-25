@@ -57,6 +57,9 @@ class User(AbstractUser):
     # Phone verification
     is_phone_verified = models.BooleanField(default=False)
     
+    # Firebase Cloud Messaging token for push notifications
+    fcm_token = models.TextField(blank=True, null=True, help_text='Firebase Cloud Messaging token for push notifications')
+    
     USERNAME_FIELD = 'phone'
     REQUIRED_FIELDS = []
     

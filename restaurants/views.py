@@ -14,6 +14,9 @@ from .models import Restaurant, Category, MenuItem, Table, Reservation, Review, 
 from accounts.models import User, StaffProfile
 from accounts.permissions import IsSuperAdmin, IsRestaurantManager, IsWaiterOrChef, IsCustomer, IsStaffMember, IsRestaurantStaff
 from orders.models import Order, OrderItem, OrderStatusUpdate
+from ai.services import AIService
+from ai.models import TableSelectionLog
+import time
 
 
 @swagger_auto_schema(
@@ -312,14 +315,25 @@ def available_tables(request, restaurant_id):
     method='post',
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
-        required=['table_id', 'party_size', 'date', 'time'],
+        required=['party_size', 'date', 'time'],
         properties={
-            'table_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Table ID"),
+            'selection_type': openapi.Schema(
+                type=openapi.TYPE_STRING,
+                description="Reservation type: 'customized' (user selects table) or 'smart' (AI-powered table selection with random fallback)",
+                enum=['customized', 'smart'],
+                default='customized'
+            ),
+            'table_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Table ID (required if selection_type='customized')"),
             'party_size': openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of guests"),
             'date': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE, description="Reservation date (YYYY-MM-DD)"),
             'time': openapi.Schema(type=openapi.TYPE_STRING, description="Reservation time (HH:MM)"),
             'duration_hours': openapi.Schema(type=openapi.TYPE_INTEGER, default=1, description="Duration in hours (default: 1)"),
             'special_requests': openapi.Schema(type=openapi.TYPE_STRING, description="Special requests (optional)"),
+            'special_occasion': openapi.Schema(type=openapi.TYPE_STRING, description="Special occasion (e.g., birthday, anniversary) for AI table selection"),
+            'user_preferences': openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                description="User preferences for AI table selection (e.g., {'quiet_area': True, 'window_seat': True})"
+            ),
         }
     ),
     responses={
@@ -334,6 +348,7 @@ def available_tables(request, restaurant_id):
                         properties={
                             'id': openapi.Schema(type=openapi.TYPE_INTEGER),
                             'status': openapi.Schema(type=openapi.TYPE_STRING),
+                            'selection_type': openapi.Schema(type=openapi.TYPE_STRING),
                             'date': openapi.Schema(type=openapi.TYPE_STRING),
                             'time': openapi.Schema(type=openapi.TYPE_STRING),
                             'duration_hours': openapi.Schema(type=openapi.TYPE_INTEGER),
@@ -348,6 +363,22 @@ def available_tables(request, restaurant_id):
                             ),
                             'special_requests': openapi.Schema(type=openapi.TYPE_STRING),
                         }
+                    ),
+                    'ai_selection': openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        description="AI selection information (only present when selection_type='smart')",
+                        properties={
+                            'method': openapi.Schema(type=openapi.TYPE_STRING, description="'ai' or 'fallback'"),
+                            'reasoning': openapi.Schema(type=openapi.TYPE_STRING, description="AI reasoning for table selection"),
+                            'confidence': openapi.Schema(type=openapi.TYPE_NUMBER, description="AI confidence score (0-1)"),
+                            'response_time_ms': openapi.Schema(type=openapi.TYPE_INTEGER, description="AI response time in milliseconds"),
+                            'factors_considered': openapi.Schema(
+                                type=openapi.TYPE_ARRAY,
+                                items=openapi.Schema(type=openapi.TYPE_STRING),
+                                description="Factors considered by AI"
+                            ),
+                            'alternative_table_id': openapi.Schema(type=openapi.TYPE_INTEGER, description="Alternative table suggested by AI (optional)")
+                        }
                     )
                 }
             )
@@ -356,68 +387,54 @@ def available_tables(request, restaurant_id):
         403: openapi.Response(description="Forbidden - insufficient permissions"),
         404: openapi.Response(description="Restaurant or table not found"),
     },
-    operation_description="Create a new table reservation"
+    operation_description="Create a new table reservation with two modes: 'customized' (user selects table) or 'smart' (AI-powered intelligent table selection with random fallback)."
 )
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_reservation(request, restaurant_id):
-    """Create a new reservation"""
+    """Create a new reservation (customized or smart AI-powered selection)."""
     restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
     user = request.user
     
     # Allow customers, waiters, and managers to make reservations, but not chefs
     if user.is_customer:
-        # Customers can make reservations
         pass
     elif user.is_staff_member:
         try:
             staff_profile = user.staff_profile
-            # Ensure staff belongs to this restaurant
             if staff_profile.restaurant.id != restaurant.id:
-                return Response({'error': 'Staff can only make reservations at their own restaurant'}, 
-                               status=status.HTTP_403_FORBIDDEN)
-            
-            # Chefs cannot make reservations
+                return Response({'error': 'Staff can only make reservations at their own restaurant'}, status=status.HTTP_403_FORBIDDEN)
             if staff_profile.role == 'chef':
-                return Response({'error': 'Chefs are not allowed to make reservations'}, 
-                               status=status.HTTP_403_FORBIDDEN)
-        except:
+                return Response({'error': 'Chefs are not allowed to make reservations'}, status=status.HTTP_403_FORBIDDEN)
+        except Exception:
             return Response({'error': 'Staff profile not found'}, status=status.HTTP_403_FORBIDDEN)
     else:
-        return Response({'error': 'Only customers, waiters, or managers can make reservations'}, 
-                        status=status.HTTP_403_FORBIDDEN)
-    
-    # Get reservation details
-    table_id = request.data.get('table_id')
-    if not table_id:
-        return Response({'error': 'Table ID is required'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    table = get_object_or_404(Table, id=table_id, restaurant=restaurant)
-    
+        return Response({'error': 'Only customers, waiters, or managers can make reservations'}, status=status.HTTP_403_FORBIDDEN)
+
+    selection_type = request.data.get('selection_type', 'customized')
+
+    # Common fields
     party_size = request.data.get('party_size')
     if not party_size:
         return Response({'error': 'Party size is required'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Check if table capacity is sufficient
-    if int(party_size) > table.capacity:
-        return Response({'error': 'Table capacity is not sufficient for your party size'}, 
-                         status=status.HTTP_400_BAD_REQUEST)
-    
-    # Get date and time
+    try:
+        party_size = int(party_size)
+        if party_size < 1:
+            return Response({'error': 'Party size must be at least 1'}, status=status.HTTP_400_BAD_REQUEST)
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid party size'}, status=status.HTTP_400_BAD_REQUEST)
+
     date_str = request.data.get('date')
     time_str = request.data.get('time')
-    
     try:
         reservation_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         reservation_time = datetime.strptime(time_str, '%H:%M').time()
     except (ValueError, TypeError):
         return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Check if date is in the past
+
     if reservation_date < timezone.now().date():
         return Response({'error': 'Cannot make reservation for past date'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Get duration (default to 1 hour if not provided)
+
     duration = request.data.get('duration_hours', 1)
     try:
         duration = int(duration)
@@ -425,26 +442,107 @@ def create_reservation(request, restaurant_id):
             duration = 1
     except (ValueError, TypeError):
         duration = 1
-    
-    # Check for conflicting reservations (considering duration)
+
+    # Calculate requested end time
     end_datetime = datetime.combine(reservation_date, reservation_time) + timedelta(hours=duration)
     end_time = end_datetime.time()
-    
-    conflicting_reservations = Reservation.objects.filter(
-        table=table,
-        reservation_date=reservation_date,
-        status__in=['pending', 'confirmed']
-    )
-    
-    for existing_reservation in conflicting_reservations:
-        existing_end_time = existing_reservation.end_time
-        # Check for time overlap
-        if (reservation_time < existing_end_time and 
-            end_time > existing_reservation.reservation_time):
-            return Response({
-                'error': f'Table is already reserved from {existing_reservation.reservation_time.strftime("%H:%M")} to {existing_end_time.strftime("%H:%M")}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-    
+
+    table = None
+
+    if selection_type == 'customized':
+        table_id = request.data.get('table_id')
+        if not table_id:
+            return Response({'error': "'table_id' is required when selection_type='customized'"}, status=status.HTTP_400_BAD_REQUEST)
+        table = get_object_or_404(Table, id=table_id, restaurant=restaurant)
+        if party_size > table.capacity:
+            return Response({'error': 'Table capacity is not sufficient for your party size'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check for conflicts on the chosen table
+        conflicting_reservations = Reservation.objects.filter(
+            table=table,
+            reservation_date=reservation_date,
+            status__in=['pending', 'confirmed']
+        )
+        for existing in conflicting_reservations:
+            existing_end_time = existing.end_time
+            if (reservation_time < existing_end_time and end_time > existing.reservation_time):
+                return Response({'error': f'Table is already reserved from {existing.reservation_time.strftime("%H:%M")} to {existing_end_time.strftime("%H:%M")}'}, status=status.HTTP_400_BAD_REQUEST)
+
+    elif selection_type == 'smart':
+        # Build candidate tables
+        candidate_tables = Table.objects.filter(
+            restaurant=restaurant,
+            is_active=True,
+            capacity__gte=party_size
+        )
+        available_tables = []
+        for t in candidate_tables:
+            overlaps = False
+            existing_reservations = Reservation.objects.filter(
+                table=t,
+                reservation_date=reservation_date,
+                status__in=['pending', 'confirmed']
+            )
+            for r in existing_reservations:
+                if (reservation_time < r.end_time and end_time > r.reservation_time):
+                    overlaps = True
+                    break
+            if not overlaps:
+                available_tables.append(t)
+        
+        if not available_tables:
+            return Response({'error': 'No available tables for the selected time and party size'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get user preferences and special occasion from request
+        user_preferences = request.data.get('user_preferences', {})
+        special_occasion = request.data.get('special_occasion', '')
+        
+        # Initialize AI service and track timing
+        ai_service = AIService()
+        start_time = time.time()
+        
+        # Try AI-powered table selection
+        ai_result = ai_service.select_optimal_table(
+            restaurant_id=restaurant.id,
+            party_size=party_size,
+            reservation_date=reservation_date,
+            reservation_time=reservation_time,
+            duration_hours=duration,
+            available_tables=available_tables,
+            user_preferences=user_preferences,
+            special_occasion=special_occasion
+        )
+        
+        ai_response_time = int((time.time() - start_time) * 1000)  # Convert to milliseconds
+        
+        # Get the selected table from AI result
+        table = ai_result.get('selected_table')
+        
+        # If AI failed to select a table, fallback to random selection
+        if not table:
+            table = available_tables[0]  # Fallback to first available table
+            ai_result = {
+                'success': False,
+                'selected_table': table,
+                'reasoning': 'AI service failed, selected first available table as fallback',
+                'confidence': 0.1,
+                'alternative_table_id': None,
+                'factors_considered': ['error_fallback'],
+                'error': 'AI service returned no table'
+            }
+        
+        # Store AI selection data for later logging
+        ai_selection_data = {
+            'ai_result': ai_result,
+            'ai_response_time': ai_response_time,
+            'available_tables': available_tables,
+            'user_preferences': user_preferences,
+            'special_occasion': special_occasion
+        }
+        
+    else:
+        return Response({'error': "Invalid selection_type. Use 'customized' or 'smart'"}, status=status.HTTP_400_BAD_REQUEST)
+
     # Create the reservation
     reservation = Reservation.objects.create(
         customer=user,
@@ -457,13 +555,11 @@ def create_reservation(request, restaurant_id):
         status='pending',
         special_requests=request.data.get('special_requests', '')
     )
-    
+
     # Auto-approve if the user is a manager
     if user.is_staff_member and user.staff_profile.role == 'manager':
         reservation.status = 'confirmed'
         reservation.save()
-        
-        # Create notification for auto-approval
         ReservationStatusUpdate.objects.create(
             reservation=reservation,
             status='confirmed',
@@ -471,11 +567,62 @@ def create_reservation(request, restaurant_id):
             updated_by=user
         )
     
-    return Response({
+    # Log AI table selection if it was used
+    if selection_type == 'smart' and 'ai_selection_data' in locals():
+        try:
+            ai_result = ai_selection_data['ai_result']
+            
+            # Determine selection method based on AI success
+            if ai_result.get('success', False):
+                selection_method = 'ai'
+            elif 'error_fallback' in ai_result.get('factors_considered', []):
+                selection_method = 'error_fallback'
+            else:
+                selection_method = 'random'
+            
+            # Prepare available tables data for logging
+            available_tables_data = []
+            for t in ai_selection_data['available_tables']:
+                available_tables_data.append({
+                    'id': t.id,
+                    'table_number': t.table_number,
+                    'capacity': t.capacity
+                })
+            
+            # Create the table selection log
+            TableSelectionLog.objects.create(
+                reservation=reservation,
+                restaurant=restaurant,
+                user=user,
+                selection_method=selection_method,
+                selected_table=table,
+                available_tables_count=len(ai_selection_data['available_tables']),
+                available_tables_data=available_tables_data,
+                ai_reasoning=ai_result.get('reasoning', ''),
+                ai_confidence=ai_result.get('confidence', 0.0),
+                ai_factors_considered=ai_result.get('factors_considered', []),
+                ai_alternative_table_id=ai_result.get('alternative_table_id'),
+                party_size=party_size,
+                reservation_date=reservation_date,
+                reservation_time=reservation_time,
+                duration_hours=duration,
+                special_occasion=ai_selection_data.get('special_occasion', ''),
+                user_preferences=ai_selection_data.get('user_preferences', {}),
+                ai_response_time_ms=ai_selection_data['ai_response_time'],
+                ai_success=ai_result.get('success', False),
+                ai_error_message=ai_result.get('error', '')
+            )
+        except Exception as log_error:
+            # Don't fail the reservation if logging fails
+            print(f"Failed to log AI table selection: {log_error}")
+
+    # Build response data
+    response_data = {
         'success': 'Reservation created successfully',
         'reservation': {
             'id': reservation.id,
             'status': reservation.status,
+            'selection_type': selection_type,
             'date': reservation.reservation_date.strftime('%Y-%m-%d'),
             'time': reservation.reservation_time.strftime('%H:%M'),
             'duration_hours': reservation.duration_hours,
@@ -487,7 +634,22 @@ def create_reservation(request, restaurant_id):
             },
             'special_requests': reservation.special_requests,
         }
-    }, status=status.HTTP_201_CREATED)
+    }
+    
+    # Add AI selection information if smart selection was used
+    if selection_type == 'smart' and 'ai_selection_data' in locals():
+        ai_result = ai_selection_data['ai_result']
+        response_data['ai_selection'] = {
+            'method': 'ai' if ai_result.get('success', False) else 'fallback',
+            'reasoning': ai_result.get('reasoning', ''),
+            'confidence': ai_result.get('confidence', 0.0),
+            'response_time_ms': ai_selection_data['ai_response_time'],
+            'factors_considered': ai_result.get('factors_considered', [])
+        }
+        if ai_result.get('alternative_table_id'):
+            response_data['ai_selection']['alternative_table_id'] = ai_result.get('alternative_table_id')
+    
+    return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 @api_view(['GET'])

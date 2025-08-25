@@ -45,4 +45,8 @@ urlpatterns = [
     # Debug endpoint (development only)
     path('debug-token/', views.debug_token, name='debug_token'),
     path('test-auth/', views.test_auth, name='test_auth'),
+    
+    # FCM token endpoints
+    path('fcm-token/register/', views.register_fcm_token, name='register_fcm_token'),
+    path('fcm-token/remove/', views.remove_fcm_token, name='remove_fcm_token'),
 ] 

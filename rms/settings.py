@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'restaurants',
     'orders',
     'ai',
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -219,6 +220,10 @@ AUTH_USER_MODEL = 'accounts.User'
 # AI API settings
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+
+# Firebase settings
+FIREBASE_SERVICE_ACCOUNT_KEY = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY')
+FIREBASE_SERVICE_ACCOUNT_PATH = os.getenv('FIREBASE_SERVICE_ACCOUNT_PATH')
 
 # Security settings for HTTPS
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

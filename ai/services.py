@@ -635,3 +635,200 @@ Format as JSON array with 'name', 'description', 'reason' fields."""
                 'error': f'AI service error: {str(e)}',
                 'recommendations': []
             }
+    
+    def select_optimal_table(self, restaurant_id, party_size, reservation_date, reservation_time, duration_hours, available_tables, user_preferences=None, special_occasion=None):
+        """
+        AI-powered intelligent table selection based on multiple factors
+        """
+        try:
+            from restaurants.models import Restaurant, Table, Reservation
+            from datetime import datetime, timedelta
+            
+            restaurant = Restaurant.objects.get(id=restaurant_id, is_active=True)
+            
+            if not available_tables:
+                return {
+                    'success': False,
+                    'error': 'No available tables provided',
+                    'selected_table': None,
+                    'reasoning': 'No tables available for selection'
+                }
+            
+            # Build context about available tables
+            table_context = []
+            for table in available_tables:
+                # Get recent reservation history for this table
+                recent_reservations = Reservation.objects.filter(
+                    table=table,
+                    reservation_date__gte=reservation_date - timedelta(days=30),
+                    status__in=['confirmed', 'completed']
+                ).count()
+                
+                table_info = {
+                    'id': table.id,
+                    'table_number': table.table_number,
+                    'capacity': table.capacity,
+                    'recent_bookings': recent_reservations,
+                    'capacity_utilization': round((party_size / table.capacity) * 100, 1)
+                }
+                table_context.append(table_info)
+            
+            # Build user preferences context
+            preferences_text = ""
+            if user_preferences:
+                if isinstance(user_preferences, dict):
+                    prefs = []
+                    for key, value in user_preferences.items():
+                        if value:
+                            prefs.append(f"{key}: {value}")
+                    preferences_text = ", ".join(prefs) if prefs else "None specified"
+                else:
+                    preferences_text = str(user_preferences)
+            else:
+                preferences_text = "None specified"
+            
+            # Build the AI prompt
+            prompt = f"""You are an intelligent table selection system for {restaurant.name}. 
+            
+Reservation Details:
+- Party size: {party_size} people
+- Date: {reservation_date}
+- Time: {reservation_time}
+- Duration: {duration_hours} hours
+- Special occasion: {special_occasion or 'None'}
+- User preferences: {preferences_text}
+
+Available Tables:
+{json.dumps(table_context, indent=2)}
+
+Selection Criteria (in order of importance):
+1. Optimal capacity utilization (prefer tables that fit the party size well, not too big or too small)
+2. Table popularity (balance between popular and less used tables)
+3. Special occasion considerations (if applicable)
+4. User preferences (if any)
+
+Please analyze each table and select the BEST one. Consider:
+- A table with 80-100% capacity utilization is ideal
+- For special occasions, prefer tables with better positioning or ambiance
+- Balance table usage to distribute wear evenly
+- Avoid oversized tables unless necessary
+
+Respond with EXACTLY this JSON structure:
+{{
+  "selected_table_id": table_id_number,
+  "reasoning": "Brief explanation of why this table was selected",
+  "confidence": confidence_score_0_to_1,
+  "alternative_table_id": alternative_table_id_or_null,
+  "factors_considered": ["factor1", "factor2", "factor3"]
+}}
+
+Select only from the provided available tables."""
+            
+            response = self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "You are an intelligent table selection AI. You MUST respond with ONLY valid JSON, no additional text. Start with { and end with }."},
+                    {"role": "user", "content": prompt}
+                ],
+                model=self.model,
+                max_tokens=400,
+                temperature=0.2  # Low temperature for consistent decision making
+            )
+            
+            response_content = response.choices[0].message.content.strip()
+            
+            try:
+                selection_result = json.loads(response_content)
+                
+                # Validate the selected table ID is in available tables
+                selected_table_id = selection_result.get('selected_table_id')
+                available_table_ids = [t.id for t in available_tables]
+                
+                if selected_table_id not in available_table_ids:
+                    # Fallback to first available table if AI selected invalid table
+                    selected_table = available_tables[0]
+                    selection_result['selected_table_id'] = selected_table.id
+                    selection_result['reasoning'] = f"AI selected invalid table, defaulted to Table {selected_table.table_number}"
+                    selection_result['confidence'] = 0.5
+                else:
+                    selected_table = next(t for t in available_tables if t.id == selected_table_id)
+                
+                return {
+                    'success': True,
+                    'selected_table': selected_table,
+                    'reasoning': selection_result.get('reasoning', 'AI-powered selection'),
+                    'confidence': selection_result.get('confidence', 0.8),
+                    'alternative_table_id': selection_result.get('alternative_table_id'),
+                    'factors_considered': selection_result.get('factors_considered', []),
+                    'ai_response': selection_result
+                }
+                
+            except json.JSONDecodeError:
+                # Try to extract JSON from response
+                try:
+                    start_idx = response_content.find('{')
+                    end_idx = response_content.rfind('}') + 1
+                    
+                    if start_idx != -1 and end_idx != 0:
+                        json_str = response_content[start_idx:end_idx]
+                        selection_result = json.loads(json_str)
+                        
+                        # Same validation as above
+                        selected_table_id = selection_result.get('selected_table_id')
+                        available_table_ids = [t.id for t in available_tables]
+                        
+                        if selected_table_id not in available_table_ids:
+                            selected_table = available_tables[0]
+                            selection_result['selected_table_id'] = selected_table.id
+                            selection_result['reasoning'] = f"AI parsing issue, defaulted to Table {selected_table.table_number}"
+                        else:
+                            selected_table = next(t for t in available_tables if t.id == selected_table_id)
+                        
+                        return {
+                            'success': True,
+                            'selected_table': selected_table,
+                            'reasoning': selection_result.get('reasoning', 'AI-powered selection with parsing recovery'),
+                            'confidence': selection_result.get('confidence', 0.7),
+                            'alternative_table_id': selection_result.get('alternative_table_id'),
+                            'factors_considered': selection_result.get('factors_considered', []),
+                            'ai_response': selection_result
+                        }
+                    else:
+                        raise json.JSONDecodeError("No JSON object found", response_content, 0)
+                        
+                except json.JSONDecodeError:
+                    # Final fallback - return first available table
+                    selected_table = available_tables[0]
+                    return {
+                        'success': False,
+                        'selected_table': selected_table,
+                        'reasoning': f'AI response parsing failed, selected Table {selected_table.table_number} as fallback',
+                        'confidence': 0.3,
+                        'alternative_table_id': None,
+                        'factors_considered': ['fallback_selection'],
+                        'error': 'AI response parsing failed',
+                        'raw_response': response_content[:200] + '...' if len(response_content) > 200 else response_content
+                    }
+            
+        except Exception as e:
+            # Complete fallback - select first available table
+            if available_tables:
+                selected_table = available_tables[0]
+                return {
+                    'success': False,
+                    'selected_table': selected_table,
+                    'reasoning': f'AI service error, selected Table {selected_table.table_number} as fallback',
+                    'confidence': 0.2,
+                    'alternative_table_id': None,
+                    'factors_considered': ['error_fallback'],
+                    'error': f'AI service error: {str(e)}'
+                }
+            else:
+                return {
+                    'success': False,
+                    'selected_table': None,
+                    'reasoning': 'No available tables and AI service failed',
+                    'confidence': 0.0,
+                    'alternative_table_id': None,
+                    'factors_considered': [],
+                    'error': f'AI service error: {str(e)}'
+                }

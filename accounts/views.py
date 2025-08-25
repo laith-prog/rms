@@ -1764,3 +1764,80 @@ def staff_shifts(request):
         
     except StaffProfile.DoesNotExist:
         return Response({'error': 'Staff profile not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@swagger_auto_schema(
+    method='post',
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['fcm_token'],
+        properties={
+            'fcm_token': openapi.Schema(
+                type=openapi.TYPE_STRING, 
+                description='Firebase Cloud Messaging token for push notifications'
+            ),
+        },
+    ),
+    responses={
+        200: openapi.Response(
+            description="FCM token registered successfully",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'success': openapi.Schema(type=openapi.TYPE_STRING, description="Success message"),
+                    'fcm_token': openapi.Schema(type=openapi.TYPE_STRING, description="Registered FCM token")
+                }
+            )
+        ),
+        400: 'FCM token is required',
+        401: 'Authentication required',
+    },
+    operation_description="Register or update the user's Firebase Cloud Messaging token for push notifications"
+)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def register_fcm_token(request):
+    """Register or update the user's FCM token for push notifications"""
+    fcm_token = request.data.get('fcm_token')
+    
+    if not fcm_token:
+        return Response({'error': 'FCM token is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Update the user's FCM token
+    user = request.user
+    user.fcm_token = fcm_token
+    user.save()
+    
+    return Response({
+        'success': 'FCM token registered successfully',
+        'fcm_token': fcm_token
+    }, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(
+    method='delete',
+    responses={
+        200: openapi.Response(
+            description="FCM token removed successfully",
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'success': openapi.Schema(type=openapi.TYPE_STRING, description="Success message")
+                }
+            )
+        ),
+        401: 'Authentication required',
+    },
+    operation_description="Remove the user's FCM token (e.g., on logout)"
+)
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def remove_fcm_token(request):
+    """Remove the user's FCM token (e.g., on logout)"""
+    user = request.user
+    user.fcm_token = None
+    user.save()
+    
+    return Response({
+        'success': 'FCM token removed successfully'
+    }, status=status.HTTP_200_OK)
