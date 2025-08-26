@@ -662,21 +662,39 @@ def user_reservations(request):
         return Response({'error': 'Only customers can view their reservations'}, 
                          status=status.HTTP_403_FORBIDDEN)
     
-    reservations = Reservation.objects.filter(customer=user).order_by('-reservation_date', '-reservation_time')
+    reservations = Reservation.objects.filter(customer=user).select_related('restaurant', 'table').prefetch_related('restaurant__categories').order_by('-reservation_date', '-reservation_time')
     
     data = []
     for reservation in reservations:
+        # Format time to 12-hour format
+        time_12_hour = reservation.reservation_time.strftime('%I:%M %p')
+        
+        # Get restaurant categories
+        categories = [{'id': cat.id, 'name': cat.name} for cat in reservation.restaurant.categories.all()]
+        
+        # Get restaurant logo/cover image URL
+        logo_url = None
+        cover_image_url = None
+        if reservation.restaurant.logo:
+            logo_url = request.build_absolute_uri(reservation.restaurant.logo.url)
+        if reservation.restaurant.cover_image:
+            cover_image_url = request.build_absolute_uri(reservation.restaurant.cover_image.url)
+        
         data.append({
             'id': reservation.id,
             'restaurant': {
                 'id': reservation.restaurant.id,
                 'name': reservation.restaurant.name,
                 'address': reservation.restaurant.address,
+                'average_rating': float(reservation.restaurant.average_rating),
+                'logo': logo_url,
+                'cover_image': cover_image_url,
+                'categories': categories,
             },
             'table': reservation.table.table_number,
             'party_size': reservation.party_size,
             'date': reservation.reservation_date,
-            'time': reservation.reservation_time,
+            'time': time_12_hour,
             'status': reservation.status,
             'created_at': reservation.created_at,
         })
