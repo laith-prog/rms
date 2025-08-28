@@ -18,6 +18,24 @@ from ai.services import AIService
 from ai.models import TableSelectionLog
 import time
 
+# Helper: mark expired reservations as completed
+
+def _mark_expired_reservations():
+    """Automatically complete reservations whose end time has passed."""
+    now = timezone.now()
+    try:
+        pending_or_confirmed = Reservation.objects.filter(status__in=['pending', 'confirmed'])
+        for r in pending_or_confirmed:
+            end_dt = datetime.combine(r.reservation_date, r.reservation_time) + timedelta(hours=r.duration_hours)
+            # Make aware using current timezone for comparison
+            end_dt = timezone.make_aware(end_dt, timezone.get_current_timezone())
+            if end_dt <= now:
+                r.status = 'completed'
+                r.save(update_fields=['status'])
+    except Exception:
+        # Fail-safe: never break main flow due to auto-complete
+        pass
+
 
 @swagger_auto_schema(
     method='get',
@@ -232,6 +250,8 @@ def restaurant_reviews(request, restaurant_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def available_tables(request, restaurant_id):
+    # Auto-complete any past reservations before computing availability
+    _mark_expired_reservations()
     """Get available tables for a restaurant on a specific date and time"""
     restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
     
@@ -655,6 +675,8 @@ def create_reservation(request, restaurant_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_reservations(request):
+    # Auto-complete any past reservations before returning list
+    _mark_expired_reservations()
     """Get all reservations for the current user"""
     user = request.user
     
@@ -695,6 +717,7 @@ def user_reservations(request):
             'party_size': reservation.party_size,
             'date': reservation.reservation_date,
             'time': time_12_hour,
+            'duration_hours': reservation.duration_hours,
             'status': reservation.status,
             'created_at': reservation.created_at,
         })
@@ -1564,17 +1587,28 @@ def available_dates(request, restaurant_id):
         while current_time < end_time:
             slot_time = current_time.time()
             
-            # Check if any table is available at this time
-            reserved_tables = Reservation.objects.filter(
-                restaurant=restaurant,
-                reservation_date=check_date,
-                reservation_time__lte=slot_time,
-                status__in=['pending', 'confirmed']
-            ).values_list('table_id', flat=True)
+            # Consider a 1-hour slot window for date-level availability
+            slot_end_time = (current_time + timedelta(hours=1)).time()
             
-            available_tables_at_time = suitable_tables.exclude(id__in=reserved_tables)
+            # Determine if at least one table is free for the entire 1-hour window
+            any_table_free = False
+            for t in suitable_tables:
+                conflicts = Reservation.objects.filter(
+                    restaurant=restaurant,
+                    reservation_date=check_date,
+                    table=t,
+                    status__in=['pending', 'confirmed']
+                )
+                has_overlap = False
+                for r in conflicts:
+                    if r.reservation_time < slot_end_time and r.end_time > slot_time:
+                        has_overlap = True
+                        break
+                if not has_overlap:
+                    any_table_free = True
+                    break
             
-            if available_tables_at_time.exists():
+            if any_table_free:
                 available_slots += 1
                 
             current_time += timedelta(hours=1)
@@ -1603,6 +1637,7 @@ def available_dates(request, restaurant_id):
         openapi.Parameter('restaurant_id', openapi.IN_PATH, description="Restaurant ID", type=openapi.TYPE_INTEGER),
         openapi.Parameter('date', openapi.IN_QUERY, description="Date (YYYY-MM-DD)", type=openapi.TYPE_STRING),
         openapi.Parameter('party_size', openapi.IN_QUERY, description="Number of guests", type=openapi.TYPE_INTEGER),
+        openapi.Parameter('duration', openapi.IN_QUERY, description="Duration in hours (default: 1)", type=openapi.TYPE_INTEGER),
     ],
     responses={
         200: openapi.Response(
@@ -1629,14 +1664,20 @@ def available_dates(request, restaurant_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def available_times(request, restaurant_id):
+    # Auto-complete any past reservations before computing availability
+    _mark_expired_reservations()
     """
     Get available time slots for a specific date and party size.
+    Takes into account reservation duration to avoid overlaps and calculates slot capacity.
     """
     restaurant = get_object_or_404(Restaurant, id=restaurant_id, is_active=True)
     
     # Get parameters
     date_str = request.GET.get('date')
     party_size = int(request.GET.get('party_size', 1))
+    duration = int(request.GET.get('duration', 1))  # default 1 hour
+    if duration < 1:
+        duration = 1
     
     if not date_str:
         return Response({'error': 'Date is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1670,54 +1711,89 @@ def available_times(request, restaurant_id):
     
     # Convert times to datetime for easier calculation
     current_time = datetime.combine(reservation_date, opening_time)
-    end_time = datetime.combine(reservation_date, closing_time)
+    close_dt = datetime.combine(reservation_date, closing_time)
     
-    while current_time < end_time:
+    # Ensure a slot can fit entirely before closing
+    while current_time + timedelta(hours=duration) <= close_dt:
         slot_time = current_time.time()
+        end_time = (current_time + timedelta(hours=duration)).time()
         
-        # Skip past time slots if reservation date is today
-        # Use GMT+3 timezone for time comparisons
+        # Skip past time slots if reservation date is today (GMT+3)
         gmt_plus_3 = pytz.timezone('Etc/GMT-3')  # Note: GMT-3 means +3 hours from GMT
         current_datetime_gmt3 = timezone.now().astimezone(gmt_plus_3)
         current_date_gmt3 = current_datetime_gmt3.date()
         
         if reservation_date == current_date_gmt3:
             slot_datetime = datetime.combine(reservation_date, slot_time)
-            # Make slot_datetime timezone aware in GMT+3
             slot_datetime_gmt3 = gmt_plus_3.localize(slot_datetime)
-            
-            # Skip if this time slot is in the past
             if slot_datetime_gmt3 <= current_datetime_gmt3:
                 current_time += timedelta(hours=1)
                 continue
         
-        # Check available tables at this time
-        reserved_tables = Reservation.objects.filter(
-            restaurant=restaurant,
-            reservation_date=reservation_date,
-            reservation_time__lte=slot_time,
-            status__in=['pending', 'confirmed']
-        ).values_list('table_id', flat=True)
+        # Count how many tables are free for the whole duration window
+        free_tables_count = 0
+        for t in suitable_tables:
+            overlaps = Reservation.objects.filter(
+                restaurant=restaurant,
+                reservation_date=reservation_date,
+                table=t,
+                status__in=['pending', 'confirmed']
+            ).filter(
+                reservation_time__lt=end_time,
+            )
+            is_conflict = False
+            for r in overlaps:
+                if r.reservation_time < end_time and r.end_time > slot_time:
+                    is_conflict = True
+                    break
+            if not is_conflict:
+                free_tables_count += 1
         
-        available_tables_at_time = suitable_tables.exclude(id__in=reserved_tables)
-        available_count = available_tables_at_time.count()
-        
-        if available_count > 0:
+        if free_tables_count > 0:
+            # Build per-duration availability counts for this slot
+            max_hours = int((close_dt - current_time).total_seconds() // 3600)
+            duration_availability = {}
+            for d in range(1, max_hours + 1):
+                slot_end_for_d = (current_time + timedelta(hours=d)).time()
+                count_for_d = 0
+                for t in suitable_tables:
+                    conflicts = Reservation.objects.filter(
+                        restaurant=restaurant,
+                        reservation_date=reservation_date,
+                        table=t,
+                        status__in=['pending', 'confirmed']
+                    ).filter(
+                        reservation_time__lt=slot_end_for_d,
+                    )
+                    has_overlap = False
+                    for r in conflicts:
+                        if r.reservation_time < slot_end_for_d and r.end_time > slot_time:
+                            has_overlap = True
+                            break
+                    if not has_overlap:
+                        count_for_d += 1
+                duration_availability[str(d)] = count_for_d
+            
             available_times.append({
                 'time': slot_time.strftime('%H:%M'),
-                'display_time': slot_time.strftime('%I:%M %p')
+                'display_time': slot_time.strftime('%I:%M %p'),
+                'available_tables': free_tables_count,
+                'duration_availability': duration_availability
             })
-            
+        
         current_time += timedelta(hours=1)
     
     return Response({
         'available_times': available_times,
         'date': reservation_date.strftime('%Y-%m-%d'),
         'party_size': party_size,
+        'requested_duration': duration,
         'restaurant': {
             'id': restaurant.id,
             'name': restaurant.name,
-        }
+            'closing_time': restaurant.closing_time.strftime('%H:%M'),
+        },
+        'note': 'duration_availability shows number of tables available for each duration in hours'
     }, status=status.HTTP_200_OK)
 
 
@@ -1766,6 +1842,8 @@ def available_times(request, restaurant_id):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def available_tables_by_floor(request, restaurant_id):
+    # Auto-complete any past reservations before computing availability
+    _mark_expired_reservations()
     """
     Get available tables grouped by floor for a specific date, time, party size, and duration.
     """
