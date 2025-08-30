@@ -37,7 +37,7 @@ django-debug-toolbar==4.2.0
 django-ratelimit==4.1.0
 
 # Phone Verification
-twilio==8.10.0
+# twilio==8.10.0  # Removed - SMS functionality replaced with Firebase push notifications
 
 # Geolocation
 geopy==2.4.1
@@ -61,4 +61,4 @@ groq==0.4.1
 httpx==0.27.2  # Pin to 0.27.2 for Groq compatibility (0.28+ removed 'proxies' argument)
 
 # Firebase Cloud Messaging
-firebase-admin==6.5.0
+firebase-admin==7.1.0

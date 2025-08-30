@@ -184,7 +184,7 @@ class FirebaseService:
             )
             
             # Send multicast message
-            response = messaging.send_multicast(message)
+            response = messaging.send_each_for_multicast(message)
             
             # Collect failed tokens
             failed_tokens = []

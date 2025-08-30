@@ -1799,19 +1799,41 @@ def staff_shifts(request):
 def register_fcm_token(request):
     """Register or update the user's FCM token for push notifications"""
     fcm_token = request.data.get('fcm_token')
+    device_type = request.data.get('device_type', 'android')
+    device_id = request.data.get('device_id')
     
     if not fcm_token:
         return Response({'error': 'FCM token is required'}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Update the user's FCM token
-    user = request.user
-    user.fcm_token = fcm_token
-    user.save()
-    
-    return Response({
-        'success': 'FCM token registered successfully',
-        'fcm_token': fcm_token
-    }, status=status.HTTP_200_OK)
+    try:
+        # Import NotificationService
+        from notifications.services import NotificationService
+        notification_service = NotificationService()
+        
+        # Register token using NotificationService (this handles FCMToken model)
+        fcm_token_obj = notification_service.register_fcm_token(
+            user=request.user,
+            token=fcm_token,
+            device_type=device_type,
+            device_id=device_id
+        )
+        
+        # Also update the legacy User.fcm_token field for backward compatibility
+        user = request.user
+        user.fcm_token = fcm_token
+        user.save()
+        
+        return Response({
+            'success': 'FCM token registered successfully',
+            'fcm_token': fcm_token,
+            'device_type': device_type,
+            'token_id': fcm_token_obj.id
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Failed to register FCM token: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @swagger_auto_schema(

@@ -9,8 +9,7 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
+
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
@@ -65,29 +64,17 @@ class CustomNotificationForm(forms.Form):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter customer phone'})
     )
     
-    subject = forms.CharField(
+    title = forms.CharField(
         max_length=200,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Email subject'})
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Notification title'})
     )
     
     message = forms.CharField(
         widget=forms.Textarea(attrs={
             'class': 'form-control',
             'rows': 6,
-            'placeholder': 'Enter your custom message here...'
+            'placeholder': 'Enter your notification message here...'
         })
-    )
-    
-    send_email = forms.BooleanField(
-        required=False,
-        initial=True,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
-    )
-    
-    send_sms = forms.BooleanField(
-        required=False,
-        initial=False,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
     )
 
 
@@ -158,10 +145,8 @@ def send_custom_notification(request, form, restaurant):
     try:
         notification_type = form.cleaned_data['notification_type']
         template_type = form.cleaned_data['template_type']
-        subject = form.cleaned_data['subject']
+        title = form.cleaned_data['title']
         message = form.cleaned_data['message']
-        send_email = form.cleaned_data['send_email']
-        send_sms = form.cleaned_data['send_sms']
         
         # Determine recipient
         customer = None
@@ -208,41 +193,37 @@ def send_custom_notification(request, form, restaurant):
         
         # Apply message template if not custom
         if template_type != 'custom':
-            message = get_template_message(template_type, customer, restaurant, related_object)
+            template_message = get_template_message(template_type, customer, restaurant, related_object)
+            # Extract title and message from template
+            lines = template_message.strip().split('\n', 1)
+            if len(lines) > 1:
+                title = lines[0].strip()
+                message = lines[1].strip()
+            else:
+                message = template_message
         
-        # Send notifications
-        notifications_sent = []
-        
-        if send_email:
-            email_result = send_custom_email(customer, subject, message, restaurant, related_object)
-            if email_result:
-                notifications_sent.append('email')
-        
-        if send_sms:
-            sms_result = send_custom_sms(customer, message, restaurant)
-            if sms_result:
-                notifications_sent.append('SMS')
+        # Send Firebase push notification
+        push_result = send_custom_push_notification(customer, title, message, restaurant, related_object)
         
         # Log the notification
         log_custom_notification(
             customer=customer,
             restaurant=restaurant,
             notification_type=notification_type,
-            subject=subject,
+            subject=title,
             message=message,
             sent_by=request.user,
             related_object=related_object,
-            channels=notifications_sent
+            channels=['push notification'] if push_result else []
         )
         
-        if notifications_sent:
-            channels_str = ' and '.join(notifications_sent)
+        if push_result:
             return {
                 'success': True,
-                'message': f'Custom notification sent successfully via {channels_str} to {customer.first_name} {customer.last_name}.'
+                'message': f'Push notification sent successfully to {customer.first_name} {customer.last_name}.'
             }
         else:
-            return {'success': False, 'message': 'Failed to send notification. Please check your settings.'}
+            return {'success': False, 'message': 'Failed to send push notification. Please check if the customer has a valid FCM token.'}
     
     except Exception as e:
         return {'success': False, 'message': f'Error sending notification: {str(e)}'}
@@ -318,61 +299,7 @@ Best regards,
     return templates.get(template_type, "Custom message")
 
 
-def send_custom_email(customer, subject, message, restaurant, related_object=None):
-    """Send custom email notification"""
-    try:
-        # Create HTML email content
-        html_content = render_to_string('emails/custom_notification.html', {
-            'customer': customer,
-            'restaurant': restaurant,
-            'subject': subject,
-            'message': message,
-            'related_object': related_object,
-        })
-        
-        # Send email
-        send_mail(
-            subject=subject,
-            message=message,  # Plain text version
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[customer.email] if customer.email else [],
-            html_message=html_content,
-            fail_silently=False,
-        )
-        return True
-    except Exception as e:
-        print(f"Error sending custom email: {e}")
-        return False
 
-
-def send_custom_sms(customer, message, restaurant):
-    """Send custom SMS notification"""
-    try:
-        # Import Twilio client if available
-        from twilio.rest import Client
-        
-        # Get Twilio settings
-        account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', None)
-        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', None)
-        from_phone = getattr(settings, 'TWILIO_PHONE_NUMBER', None)
-        
-        if not all([account_sid, auth_token, from_phone]):
-            print("Twilio settings not configured")
-            return False
-        
-        client = Client(account_sid, auth_token)
-        
-        # Send SMS
-        message_obj = client.messages.create(
-            body=f"{restaurant.name}: {message}",
-            from_=from_phone,
-            to=customer.phone
-        )
-        
-        return True
-    except Exception as e:
-        print(f"Error sending custom SMS: {e}")
-        return False
 
 
 def log_custom_notification(customer, restaurant, notification_type, subject, message, sent_by, related_object=None, channels=None):
@@ -488,11 +415,69 @@ def notification_templates(request):
         
         template_message = get_template_message(template_type, sample_customer, restaurant)
         
+        # Extract title and message from template
+        lines = template_message.strip().split('\n', 1)
+        if len(lines) > 1:
+            title = lines[0].strip()
+            message = lines[1].strip()
+        else:
+            title = f"{restaurant.name} - {template_type.replace('_', ' ').title()}"
+            message = template_message
+        
         return JsonResponse({
             'success': True,
-            'message': template_message,
-            'subject': f"{restaurant.name} - {template_type.replace('_', ' ').title()}"
+            'title': title,
+            'message': message
         })
     
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def send_custom_push_notification(customer, title, message, restaurant, related_object=None):
+    """Send custom push notification using Firebase"""
+    try:
+        # Import NotificationService
+        from notifications.services import NotificationService
+        notification_service = NotificationService()
+        
+        # Prepare notification data
+        data = {
+            'restaurant_id': str(restaurant.id),
+            'restaurant_name': restaurant.name,
+            'notification_type': 'custom',
+        }
+        
+        # Add related object data if available
+        if related_object:
+            if hasattr(related_object, 'reservation_date'):  # It's a reservation
+                data.update({
+                    'reservation_id': str(related_object.id),
+                    'reservation_date': related_object.reservation_date.isoformat(),
+                    'party_size': str(related_object.party_size),
+                })
+            elif hasattr(related_object, 'order_type'):  # It's an order
+                data.update({
+                    'order_id': str(related_object.id),
+                    'order_type': related_object.order_type,
+                    'total_amount': str(related_object.total_amount),
+                })
+        
+        # Send push notification
+        result = notification_service.send_notification_to_user(
+            user=customer,
+            title=title,
+            body=message,
+            data=data,
+            notification_type='custom_notification',
+            order=related_object if hasattr(related_object, 'order_type') else None,
+            reservation=related_object if hasattr(related_object, 'reservation_date') else None
+        )
+        
+        # Check if notification was sent successfully
+        success_count = result.get('success_count', 0)
+        return success_count > 0
+        
+    except Exception as e:
+        print(f"Error sending custom push notification: {e}")
+        return False

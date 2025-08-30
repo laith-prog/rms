@@ -261,10 +261,10 @@
             <div class="loading" id="customerLoading">Looking up customer...</div>
         </div>
         
-        <!-- Subject -->
+        <!-- Title -->
         <div class="form-group">
-            <label for="{{ form.subject.id_for_label }}">Email Subject:</label>
-            {{ form.subject }}
+            <label for="{{ form.title.id_for_label }}">Notification Title:</label>
+            {{ form.title }}
         </div>
         
         <!-- Message -->
@@ -274,25 +274,10 @@
             <div id="templatePreview" class="template-preview" style="display: none;"></div>
         </div>
         
-        <!-- Delivery Channels -->
-        <div class="form-group">
-            <label>Delivery Channels:</label>
-            <div class="checkbox-group">
-                <div class="checkbox-item">
-                    {{ form.send_email }}
-                    <label for="{{ form.send_email.id_for_label }}">Send Email</label>
-                </div>
-                <div class="checkbox-item">
-                    {{ form.send_sms }}
-                    <label for="{{ form.send_sms.id_for_label }}">Send SMS</label>
-                </div>
-            </div>
-        </div>
-        
         <!-- Submit Buttons -->
         <div class="form-group">
             <button type="submit" class="btn btn-primary">
-                📧 Send Notification
+                🔔 Send Push Notification
             </button>
             <a href="{% url 'manager:index' %}" class="btn btn-secondary">
                 Cancel
@@ -379,7 +364,7 @@ document.getElementById('id_template_type').addEventListener('change', function(
     const templateType = this.value;
     const templatePreview = document.getElementById('templatePreview');
     const messageField = document.getElementById('id_message');
-    const subjectField = document.getElementById('id_subject');
+    const titleField = document.getElementById('id_title');
     
     if (templateType === 'custom') {
         templatePreview.style.display = 'none';
@@ -393,7 +378,7 @@ document.getElementById('id_template_type').addEventListener('change', function(
             templatePreview.textContent = data.message;
             templatePreview.style.display = 'block';
             messageField.value = data.message;
-            subjectField.value = data.subject;
+            titleField.value = data.title;
         }
     })
     .catch(error => {
