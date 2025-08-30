@@ -247,6 +247,8 @@ Adds AI-powered features on top of the operational data.
   - `ChatMessage`: message history with roles (user/assistant/system).
   - `ReviewAnalysis`: stores analysis results of a review (sentiment/emotions/summary/suggestions).
   - `RecommendationLog`: audit of recommendations with input/output and acceptance tracking.
+  - New:
+    - `TableSelectionLog`: one-to-one with Reservation; captures selection method, selected table, available tables, AI reasoning, confidence, performance metrics.
 
 - `urls.py`
   - Wires all endpoints under `/api/ai/`.
@@ -314,13 +316,14 @@ curl -X POST http://localhost:8000/api/ai/reservations/predict-wait/ \
 
 ## Root Files
 - `manage.py`: standard Django entrypoint.
-- `requirements.txt`: dependencies (Django, DRF, JWT, drf-yasg, corsheaders, channels, redis, celery, pillow, twilio, stripe, groq, etc.).
+- `requirements.txt`: dependencies (Django, DRF, JWT, drf-yasg, corsheaders, channels, redis, celery, pillow, twilio, stripe, groq, firebase-admin, etc.).
 - `Procfile`: `web: python manage.py migrate && python manage.py collectstatic --no-input && gunicorn rms.wsgi`
 - `runtime.txt`: `python-3.11.9`
 - `README.md`: quick setup and endpoint overview.
 - `STAFF_AUTH_README.md`: extensive staff authentication and role documentation.
 - `.zencoder/rules/repo.md`: auto-generated repo meta used by tooling.
 - `RMS_API_Collection.json`: likely a Postman/Insomnia collection for API testing.
+- `firebase_service.py`: Firebase Admin SDK integration for FCM notifications.
 - Note: a stray file `h origin main` is present in root; it appears to be accidental and can be removed safely.
 
 ---
@@ -349,7 +352,8 @@ curl -X POST http://localhost:8000/api/ai/reservations/predict-wait/ \
 - Accounts: `User`, `CustomerProfile`, `StaffProfile`, `StaffShift`, `PhoneVerification`, `PasswordReset`, `TokenVersion`.
 - Restaurants: `Category`, `Restaurant`, `RestaurantImage`, `MenuItem`, `Table`, `Reservation`, `ReservationStatusUpdate`, `Review`.
 - Orders: `Order`, `OrderItem`, `OrderStatusUpdate`.
-- AI: `ChatSession`, `ChatMessage`, `ReviewAnalysis`, `RecommendationLog`.
+- AI: `ChatSession`, `ChatMessage`, `ReviewAnalysis`, `RecommendationLog`, `TableSelectionLog`.
+- Notifications: `FCMToken`, `NotificationTemplate`, `NotificationLog`, `TopicSubscription`.
 
 ### Accounts Models — Field-level Details
 - `User`
@@ -415,6 +419,7 @@ curl -X POST http://localhost:8000/api/ai/reservations/predict-wait/ \
 - Accounts: authentication, phone verification, password reset, profile management, staff login/profile/shifts, and manager staff actions.
 - Restaurants: listing, categories, details, menu, reviews, tables availability, reservation CRUD.
 - Orders: CRUD-like order operations for customers and staff, status tracking.
+- Notifications: FCM token register/update, templates CRUD + test, logs read, topic subscribe/unsubscribe, admin broadcast.
 - AI: chat sessions/messages, menu recommendations, reservation suggestions, sentiment analysis, basic recommendations, semantic search, upsell, review summaries, wait-time prediction.
 
 See Swagger at `/swagger/` for request/response schemas and try-it-out.
@@ -430,6 +435,7 @@ See Swagger at `/swagger/` for request/response schemas and try-it-out.
   - `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`
   - `DATABASE_URL` (for Postgres via dj-database-url, if adopted)
   - `GROQ_API_KEY`
+  - `FIREBASE_SERVICE_ACCOUNT_KEY` (JSON string) or `FIREBASE_SERVICE_ACCOUNT_PATH` (file path) for FCM
 - Switch DB to Postgres in production (uncomment psycopg2 in requirements and configure `DATABASES`).
 - Consider `django-redis` for cache backend in production.
 - Static files already collected to `staticfiles/`; ensure WhiteNoise middleware is active in settings.

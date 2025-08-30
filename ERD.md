@@ -1,0 +1,360 @@
+# RMS Database ERD
+
+```mermaid
+erDiagram
+    ACCOUNTS_USER {
+        int id
+        string phone
+        string email
+        bool is_customer
+        bool is_staff_member
+        bool is_phone_verified
+    }
+
+    ACCOUNTS_CUSTOMERPROFILE {
+        int id
+        int user_id
+        text allergies
+        text dietary_preferences
+        text default_address
+        datetime created_at
+        datetime updated_at
+    }
+
+    ACCOUNTS_STAFFPROFILE {
+        int id
+        int user_id
+        int restaurant_id
+        string role
+        bool is_on_shift
+        datetime created_at
+        datetime updated_at
+    }
+
+    ACCOUNTS_STAFFSHIFT {
+        int id
+        int staff_id
+        datetime start_time
+        datetime end_time
+        bool is_active
+        int created_by_id
+        datetime created_at
+        datetime updated_at
+    }
+
+    ACCOUNTS_PHONEVERIFICATION {
+        int id
+        string phone
+        string code
+        datetime created_at
+        bool is_used
+    }
+
+    ACCOUNTS_PASSWORDRESET {
+        int id
+        string phone
+        string code
+        datetime created_at
+        bool is_used
+    }
+
+    ACCOUNTS_TOKENVERSION {
+        int id
+        int user_id
+        int version
+        datetime last_logout
+    }
+
+    RESTAURANT_CATEGORY {
+        int id
+        string name
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    RESTAURANT_RESTAURANT {
+        int id
+        string name
+        string address
+        string phone
+        string email
+        time opening_time
+        time closing_time
+        bool offers_dine_in
+        bool offers_takeaway
+        bool offers_delivery
+        decimal average_rating
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    RESTAURANT_RESTAURANTIMAGE {
+        int id
+        int restaurant_id
+        string image
+        string caption
+        bool is_active
+        datetime created_at
+    }
+
+    RESTAURANT_MENUITEM {
+        int id
+        int restaurant_id
+        int food_category_id
+        string name
+        decimal price
+        int preparation_time
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    RESTAURANT_TABLE {
+        int id
+        int restaurant_id
+        string table_number
+        int capacity
+        bool is_active
+        bool is_reserved
+    }
+
+    RESTAURANT_RESERVATION {
+        int id
+        int customer_id
+        int restaurant_id
+        int table_id
+        date reservation_date
+        time reservation_time
+        int party_size
+        int duration_hours
+        string status
+        datetime created_at
+        datetime updated_at
+    }
+
+    RESTAURANT_RESERVATIONSTATUSUPDATE {
+        int id
+        int reservation_id
+        string status
+        int updated_by_id
+        text notes
+        bool is_notified
+        datetime created_at
+    }
+
+    RESTAURANT_REVIEW {
+        int id
+        int customer_id
+        int restaurant_id
+        int rating
+        text comment
+        datetime created_at
+        datetime updated_at
+    }
+
+    ORDERS_ORDER {
+        int id
+        int customer_id
+        int restaurant_id
+        int reservation_id
+        string order_type
+        string status
+        decimal subtotal
+        decimal tax
+        decimal delivery_fee
+        decimal total
+        string payment_status
+        string payment_method
+        text delivery_address
+        int assigned_chef_id
+        int assigned_waiter_id
+        int estimated_preparation_time
+        datetime created_at
+        datetime updated_at
+    }
+
+    ORDERS_ORDERITEM {
+        int id
+        int order_id
+        int menu_item_id
+        int quantity
+        decimal item_price
+        text special_instructions
+    }
+
+    ORDERS_ORDERSTATUSUPDATE {
+        int id
+        int order_id
+        string status
+        int updated_by_id
+        text notes
+        text notification_message
+        bool is_notified
+        datetime created_at
+    }
+
+    NOTIF_FCMTOKEN {
+        int id
+        int user_id
+        text token
+        string device_type
+        string device_id
+        bool is_active
+        datetime created_at
+        datetime updated_at
+        datetime last_used
+    }
+
+    NOTIF_NOTIFICATIONTEMPLATE {
+        int id
+        string name
+        string notification_type
+        string title_template
+        text body_template
+        json data_template
+        string image_url
+        bool is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    NOTIF_NOTIFICATIONLOG {
+        int id
+        int user_id
+        string notification_type
+        string title
+        text body
+        json data
+        text fcm_token
+        string status
+        text error_message
+        string firebase_message_id
+        datetime sent_at
+        datetime delivered_at
+        int order_id
+        int reservation_id
+    }
+
+    NOTIF_TOPICSUBSCRIPTION {
+        int id
+        int user_id
+        string topic
+        bool is_subscribed
+        datetime subscribed_at
+        datetime unsubscribed_at
+    }
+
+    AI_CHATSESSION {
+        string id
+        int user_id
+        int restaurant_id
+        string topic
+        datetime created_at
+        datetime updated_at
+    }
+
+    AI_CHATMESSAGE {
+        int id
+        string session_id
+        string role
+        text content
+        datetime created_at
+    }
+
+    AI_REVIEWANALYSIS {
+        int id
+        int review_id
+        string sentiment
+        float confidence
+        json emotions
+        text summary
+        json suggestions
+        datetime created_at
+    }
+
+    AI_RECOMMENDATIONLOG {
+        int id
+        int user_id
+        string context
+        json input_payload
+        json output
+        bool accepted
+        datetime created_at
+    }
+
+    AI_TABLESELECTIONLOG {
+        int id
+        int reservation_id
+        int restaurant_id
+        int user_id
+        int selected_table_id
+        string selection_method
+        int available_tables_count
+        json available_tables_data
+        text ai_reasoning
+        float ai_confidence
+        json ai_factors_considered
+        int ai_alternative_table_id
+        int party_size
+        date reservation_date
+        time reservation_time
+        int duration_hours
+        string special_occasion
+        json user_preferences
+        int ai_response_time_ms
+        bool ai_success
+        text ai_error_message
+        datetime created_at
+    }
+
+    ACCOUNTS_CUSTOMERPROFILE ||--|| ACCOUNTS_USER : "user"
+    ACCOUNTS_STAFFPROFILE ||--|| ACCOUNTS_USER : "user"
+    ACCOUNTS_STAFFPROFILE }o--|| RESTAURANT_RESTAURANT : "restaurant"
+    ACCOUNTS_STAFFSHIFT }o--|| ACCOUNTS_STAFFPROFILE : "staff"
+    ACCOUNTS_STAFFSHIFT }o--|| ACCOUNTS_USER : "created_by"
+    ACCOUNTS_TOKENVERSION ||--|| ACCOUNTS_USER : "user"
+
+    RESTAURANT_RESTAURANT }o--o{ RESTAURANT_CATEGORY : "categories"
+    RESTAURANT_RESTAURANT ||--o{ RESTAURANT_RESTAURANTIMAGE : "images"
+    RESTAURANT_RESTAURANT ||--o{ RESTAURANT_MENUITEM : "menu_items"
+    RESTAURANT_RESTAURANT ||--o{ RESTAURANT_TABLE : "tables"
+    RESTAURANT_RESERVATION }o--|| RESTAURANT_RESTAURANT : "restaurant"
+    RESTAURANT_RESERVATION }o--|| RESTAURANT_TABLE : "table"
+    RESTAURANT_RESERVATION }o--|| ACCOUNTS_USER : "customer"
+    RESTAURANT_RESERVATIONSTATUSUPDATE }o--|| RESTAURANT_RESERVATION : "reservation"
+    RESTAURANT_RESERVATIONSTATUSUPDATE }o--|| ACCOUNTS_USER : "updated_by"
+    RESTAURANT_REVIEW }o--|| ACCOUNTS_USER : "customer"
+    RESTAURANT_REVIEW }o--|| RESTAURANT_RESTAURANT : "restaurant"
+
+    ORDERS_ORDER }o--|| ACCOUNTS_USER : "customer"
+    ORDERS_ORDER }o--|| RESTAURANT_RESTAURANT : "restaurant"
+    ORDERS_ORDER }o--o| RESTAURANT_RESERVATION : "reservation"
+    ORDERS_ORDER }o--o| ACCOUNTS_USER : "assigned_chef"
+    ORDERS_ORDER }o--o| ACCOUNTS_USER : "assigned_waiter"
+    ORDERS_ORDERITEM }o--|| ORDERS_ORDER : "order"
+    ORDERS_ORDERITEM }o--|| RESTAURANT_MENUITEM : "menu_item"
+    ORDERS_ORDERSTATUSUPDATE }o--|| ORDERS_ORDER : "order"
+    ORDERS_ORDERSTATUSUPDATE }o--|| ACCOUNTS_USER : "updated_by"
+
+    NOTIF_FCMTOKEN }o--|| ACCOUNTS_USER : "user"
+    NOTIF_NOTIFICATIONLOG }o--|| ACCOUNTS_USER : "user"
+    NOTIF_NOTIFICATIONLOG }o--o| ORDERS_ORDER : "order"
+    NOTIF_NOTIFICATIONLOG }o--o| RESTAURANT_RESERVATION : "reservation"
+    NOTIF_TOPICSUBSCRIPTION }o--|| ACCOUNTS_USER : "user"
+
+    AI_CHATSESSION }o--|| ACCOUNTS_USER : "user"
+    AI_CHATSESSION }o--o| RESTAURANT_RESTAURANT : "restaurant"
+    AI_CHATMESSAGE }o--|| AI_CHATSESSION : "session"
+    AI_REVIEWANALYSIS ||--|| RESTAURANT_REVIEW : "review"
+    AI_RECOMMENDATIONLOG }o--|| ACCOUNTS_USER : "user"
+    AI_TABLESELECTIONLOG ||--|| RESTAURANT_RESERVATION : "reservation"
+    AI_TABLESELECTIONLOG }o--|| RESTAURANT_RESTAURANT : "restaurant"
+    AI_TABLESELECTIONLOG }o--|| ACCOUNTS_USER : "user"
+    AI_TABLESELECTIONLOG }o--|| RESTAURANT_TABLE : "selected_table"
+```
+
+Notes:
+- o| denotes optional (nullable) side; || denotes mandatory side; }o--o{ denotes many-to-many.
+- Some non-relational fields are omitted for brevity.

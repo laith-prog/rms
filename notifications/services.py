@@ -61,36 +61,42 @@ class NotificationService:
     
     def get_user_tokens(self, user: User, active_only: bool = True) -> List[str]:
         """
-        Get all FCM tokens for a user
-        
-        Args:
-            user: User instance
-            active_only: Whether to return only active tokens
-            
-        Returns:
-            List of FCM token strings
+        Get all FCM tokens for a user.
+        Combines the legacy User.fcm_token field and FCMToken table, de-duplicated.
         """
-        # Use the FCM token directly from the User model
-        if user.fcm_token:
-            return [user.fcm_token]
-        return []
+        tokens: List[str] = []
+        # Legacy single token on user
+        if getattr(user, 'fcm_token', None):
+            tokens.append(user.fcm_token)
+        # Tokens from FCMToken model
+        qs = FCMToken.objects.filter(user=user)
+        if active_only:
+            qs = qs.filter(is_active=True)
+        tokens.extend(list(qs.values_list('token', flat=True)))
+        # De-duplicate while preserving order
+        seen = set()
+        unique_tokens: List[str] = []
+        for t in tokens:
+            if t and t not in seen:
+                seen.add(t)
+                unique_tokens.append(t)
+        return unique_tokens
     
     def get_users_tokens(self, users: List[User], active_only: bool = True) -> List[str]:
         """
-        Get all FCM tokens for multiple users
-        
-        Args:
-            users: List of User instances
-            active_only: Whether to return only active tokens
-            
-        Returns:
-            List of FCM token strings
+        Get all FCM tokens for multiple users using get_user_tokens.
         """
-        tokens = []
+        tokens: List[str] = []
         for user in users:
-            if user.fcm_token:
-                tokens.append(user.fcm_token)
-        return tokens
+            tokens.extend(self.get_user_tokens(user, active_only=active_only))
+        # De-duplicate across all users
+        seen = set()
+        unique_tokens: List[str] = []
+        for t in tokens:
+            if t and t not in seen:
+                seen.add(t)
+                unique_tokens.append(t)
+        return unique_tokens
     
     def send_notification_to_user(
         self,

@@ -1,0 +1,24 @@
+{
+  "name": "rms",
+  "version": "1.0.0",
+  "description": "A comprehensive restaurant management system with customer, staff, and admin interfaces. The system consists of:",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laith-prog/rms.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/laith-prog/rms/issues"
+  },
+  "homepage": "https://github.com/laith-prog/rms#readme",
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^10.9.1"
+  }
+}
