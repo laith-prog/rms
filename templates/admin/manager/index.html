@@ -69,6 +69,8 @@
         .btn-approved { background-color: #28a745; color: white; }
         .btn-orders { background-color: #17a2b8; color: white; }
         .btn-reservations { background-color: #6f42c1; color: white; }
+        .btn-notification { background-color: #fd7e14; color: white; }
+        .btn-notification:hover { background-color: #e8690b; }
     </style>
 {% endblock %}
 
@@ -116,6 +118,9 @@
             </a>
             <a href="{% url 'manager:orders_order_changelist' %}" class="action-btn btn-orders">
                 All Orders
+            </a>
+            <a href="{% url 'manager:custom_notification' %}" class="action-btn btn-notification">
+                📧 Send Custom Notification
             </a>
         </div>
     </div>

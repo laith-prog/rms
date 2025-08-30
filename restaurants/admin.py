@@ -10,7 +10,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Permission
 from django.contrib.contenttypes.models import ContentType
 
-from .models import Category, Restaurant, RestaurantImage, MenuItem, Table, Reservation, Review, ReservationStatusUpdate
+from .models import Category, Restaurant, RestaurantImage, MenuItem, Table, Reservation, Review, ReservationStatusUpdate, CustomNotificationLog
 from accounts.models import StaffProfile
 
 User = get_user_model()
@@ -68,6 +68,38 @@ class ManagerAdminSite(AdminSite):
         extra_context['title'] = 'Manager Login'
         extra_context['site_header'] = self.site_header
         return super().login(request, extra_context)
+    
+    def get_urls(self):
+        """Add custom notification URLs to the admin site"""
+        from django.urls import path, include
+        urls = super().get_urls()
+        custom_urls = [
+            path('custom-notification/', 
+                 self.admin_view(self.custom_notification_view), 
+                 name='custom_notification'),
+            path('get-customer-info/', 
+                 self.admin_view(self.get_customer_info), 
+                 name='get_customer_info'),
+            path('notification-templates/', 
+                 self.admin_view(self.notification_templates), 
+                 name='notification_templates'),
+        ]
+        return custom_urls + urls
+    
+    def custom_notification_view(self, request):
+        """Custom notification view"""
+        from .custom_notification_views import custom_notification_view
+        return custom_notification_view(request)
+    
+    def get_customer_info(self, request):
+        """Get customer info view"""
+        from .custom_notification_views import get_customer_info
+        return get_customer_info(request)
+    
+    def notification_templates(self, request):
+        """Notification templates view"""
+        from .custom_notification_views import notification_templates
+        return notification_templates(request)
 
 
 class StaffAdminSite(AdminSite):
@@ -1348,6 +1380,73 @@ class StaffReviewAdmin(admin.ModelAdmin):
         return qs.none()
 
 
+class ManagerCustomNotificationLogAdmin(admin.ModelAdmin):
+    """Admin for viewing custom notification logs (manager only)"""
+    list_display = ('customer_name', 'notification_type', 'subject', 'channels', 'sent_by', 'created_at')
+    list_filter = ('notification_type', 'channels', 'created_at')
+    search_fields = ('customer__first_name', 'customer__last_name', 'customer__phone', 'subject')
+    readonly_fields = ('customer', 'restaurant', 'notification_type', 'subject', 'message', 
+                      'sent_by', 'reservation', 'order', 'channels', 'created_at')
+    
+    def customer_name(self, obj):
+        """Display customer name"""
+        return f"{obj.customer.first_name} {obj.customer.last_name}"
+    customer_name.short_description = 'Customer'
+    
+    def has_module_permission(self, request):
+        """Only allow managers to access this module"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                return staff_profile.role == 'manager'
+            except:
+                pass
+        return False
+    
+    def has_view_permission(self, request, obj=None):
+        """Only allow managers to view notification logs"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    if obj:
+                        return obj.restaurant == staff_profile.restaurant
+                    return True
+            except:
+                pass
+        return False
+    
+    def has_add_permission(self, request):
+        """Don't allow adding logs through admin (use custom notification view)"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Don't allow changing logs"""
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Don't allow deleting logs"""
+        return False
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Only show logs for the manager's restaurant
+        if request.user.is_superuser:
+            return qs
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    return qs.filter(restaurant=staff_profile.restaurant)
+            except:
+                pass
+        return qs.none()
+
+
 # Register models with the superadmin site
 superadmin_site.register(Category, CategoryAdmin)
 superadmin_site.register(Restaurant, RestaurantAdmin)
@@ -1362,6 +1461,7 @@ manager_site.register(Order, ManagerOrderAdmin)
 manager_site.register(Review, StaffReviewAdmin)
 manager_site.register(ReservationStatusUpdate)
 manager_site.register(Restaurant, ManagerRestaurantAdmin) # Register the read-only restaurant admin
+manager_site.register(CustomNotificationLog, ManagerCustomNotificationLogAdmin)
 
 # Make sure manager site has proper login configuration
 manager_site.login_template = 'admin/login.html'

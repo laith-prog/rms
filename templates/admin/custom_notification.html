@@ -1,0 +1,439 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static admin_urls %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .notification-form {
+            max-width: 800px;
+            margin: 20px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .form-control:focus {
+            border-color: #007cba;
+            outline: none;
+            box-shadow: 0 0 5px rgba(0,124,186,0.3);
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: #007cba;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #005a87;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+            margin-left: 10px;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .customer-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .customer-info.show {
+            display: block;
+        }
+        
+        .customer-info h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        
+        .customer-info p {
+            margin: 5px 0;
+            color: #6c757d;
+        }
+        
+        .template-preview {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .quick-select {
+            background: #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .quick-select h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        
+        .quick-select-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .quick-select-item {
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .quick-select-item:hover {
+            background: #007cba;
+            color: white;
+            border-color: #007cba;
+        }
+        
+        .error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .success {
+            color: #28a745;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .loading {
+            display: none;
+            color: #007cba;
+            font-style: italic;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="notification-form">
+    <h1>📧 Send Custom Notification</h1>
+    <p>Send personalized notifications to your customers via email and SMS.</p>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    
+    <!-- Quick Select Section -->
+    <div class="quick-select">
+        <h4>Quick Select Recent Items</h4>
+        <div class="quick-select-items">
+            {% for reservation in recent_reservations %}
+                <div class="quick-select-item" 
+                     onclick="selectReservation({{ reservation.id }}, '{{ reservation.customer.first_name }} {{ reservation.customer.last_name }}')">
+                    Reservation #{{ reservation.id }} - {{ reservation.customer.first_name }} {{ reservation.customer.last_name }}
+                </div>
+            {% endfor %}
+            {% for order in recent_orders %}
+                <div class="quick-select-item" 
+                     onclick="selectOrder({{ order.id }}, '{{ order.customer.first_name }} {{ order.customer.last_name }}')">
+                    Order #{{ order.id }} - {{ order.customer.first_name }} {{ order.customer.last_name }}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <form method="post" id="notificationForm">
+        {% csrf_token %}
+        
+        <!-- Notification Type -->
+        <div class="form-group">
+            <label for="{{ form.notification_type.id_for_label }}">Notification Type:</label>
+            {{ form.notification_type }}
+        </div>
+        
+        <!-- Template Type -->
+        <div class="form-group">
+            <label for="{{ form.template_type.id_for_label }}">Message Template:</label>
+            {{ form.template_type }}
+            <small>Select a template or choose "Custom Message" to write your own.</small>
+        </div>
+        
+        <!-- Customer Selection -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="{{ form.reservation_id.id_for_label }}">Reservation ID:</label>
+                {{ form.reservation_id }}
+                <button type="button" class="btn btn-secondary" onclick="lookupCustomer('reservation')" style="margin-top: 5px; padding: 5px 10px; font-size: 12px;">
+                    Lookup Customer
+                </button>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.order_id.id_for_label }}">Order ID:</label>
+                {{ form.order_id }}
+                <button type="button" class="btn btn-secondary" onclick="lookupCustomer('order')" style="margin-top: 5px; padding: 5px 10px; font-size: 12px;">
+                    Lookup Customer
+                </button>
+            </div>
+            <div class="form-group">
+                <label for="{{ form.customer_phone.id_for_label }}">Customer Phone:</label>
+                {{ form.customer_phone }}
+                <button type="button" class="btn btn-secondary" onclick="lookupCustomer('phone')" style="margin-top: 5px; padding: 5px 10px; font-size: 12px;">
+                    Lookup Customer
+                </button>
+            </div>
+        </div>
+        
+        <!-- Customer Info Display -->
+        <div id="customerInfo" class="customer-info">
+            <h4>Customer Information</h4>
+            <div id="customerDetails"></div>
+            <div class="loading" id="customerLoading">Looking up customer...</div>
+        </div>
+        
+        <!-- Subject -->
+        <div class="form-group">
+            <label for="{{ form.subject.id_for_label }}">Email Subject:</label>
+            {{ form.subject }}
+        </div>
+        
+        <!-- Message -->
+        <div class="form-group">
+            <label for="{{ form.message.id_for_label }}">Message:</label>
+            {{ form.message }}
+            <div id="templatePreview" class="template-preview" style="display: none;"></div>
+        </div>
+        
+        <!-- Delivery Channels -->
+        <div class="form-group">
+            <label>Delivery Channels:</label>
+            <div class="checkbox-group">
+                <div class="checkbox-item">
+                    {{ form.send_email }}
+                    <label for="{{ form.send_email.id_for_label }}">Send Email</label>
+                </div>
+                <div class="checkbox-item">
+                    {{ form.send_sms }}
+                    <label for="{{ form.send_sms.id_for_label }}">Send SMS</label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Submit Buttons -->
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">
+                📧 Send Notification
+            </button>
+            <a href="{% url 'manager:index' %}" class="btn btn-secondary">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+// Quick select functions
+function selectReservation(id, customerName) {
+    document.getElementById('id_notification_type').value = 'reservation';
+    document.getElementById('id_reservation_id').value = id;
+    document.getElementById('id_order_id').value = '';
+    document.getElementById('id_customer_phone').value = '';
+    lookupCustomer('reservation');
+}
+
+function selectOrder(id, customerName) {
+    document.getElementById('id_notification_type').value = 'order';
+    document.getElementById('id_order_id').value = id;
+    document.getElementById('id_reservation_id').value = '';
+    document.getElementById('id_customer_phone').value = '';
+    lookupCustomer('order');
+}
+
+// Customer lookup function
+function lookupCustomer(type) {
+    const customerInfo = document.getElementById('customerInfo');
+    const customerDetails = document.getElementById('customerDetails');
+    const customerLoading = document.getElementById('customerLoading');
+    
+    let lookupId = '';
+    if (type === 'reservation') {
+        lookupId = document.getElementById('id_reservation_id').value;
+    } else if (type === 'order') {
+        lookupId = document.getElementById('id_order_id').value;
+    } else if (type === 'phone') {
+        lookupId = document.getElementById('id_customer_phone').value;
+    }
+    
+    if (!lookupId) {
+        customerInfo.classList.remove('show');
+        return;
+    }
+    
+    customerInfo.classList.add('show');
+    customerLoading.style.display = 'block';
+    customerDetails.innerHTML = '';
+    
+    fetch('{% url "manager:get_customer_info" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            type: type,
+            id: lookupId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        customerLoading.style.display = 'none';
+        if (data.success) {
+            customerDetails.innerHTML = `
+                <p><strong>Name:</strong> ${data.customer.name}</p>
+                <p><strong>Phone:</strong> ${data.customer.phone}</p>
+                <p><strong>Email:</strong> ${data.customer.email}</p>
+                <p><strong>Details:</strong> ${data.customer.details}</p>
+            `;
+        } else {
+            customerDetails.innerHTML = `<p class="error">${data.error}</p>`;
+        }
+    })
+    .catch(error => {
+        customerLoading.style.display = 'none';
+        customerDetails.innerHTML = `<p class="error">Error looking up customer: ${error}</p>`;
+    });
+}
+
+// Template preview function
+document.getElementById('id_template_type').addEventListener('change', function() {
+    const templateType = this.value;
+    const templatePreview = document.getElementById('templatePreview');
+    const messageField = document.getElementById('id_message');
+    const subjectField = document.getElementById('id_subject');
+    
+    if (templateType === 'custom') {
+        templatePreview.style.display = 'none';
+        return;
+    }
+    
+    fetch(`{% url "manager:notification_templates" %}?template=${templateType}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            templatePreview.textContent = data.message;
+            templatePreview.style.display = 'block';
+            messageField.value = data.message;
+            subjectField.value = data.subject;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading template:', error);
+    });
+});
+
+// Auto-lookup when IDs are entered
+document.getElementById('id_reservation_id').addEventListener('blur', function() {
+    if (this.value) lookupCustomer('reservation');
+});
+
+document.getElementById('id_order_id').addEventListener('blur', function() {
+    if (this.value) lookupCustomer('order');
+});
+
+document.getElementById('id_customer_phone').addEventListener('blur', function() {
+    if (this.value) lookupCustomer('phone');
+});
+
+// Clear other fields when one is selected
+document.getElementById('id_reservation_id').addEventListener('input', function() {
+    if (this.value) {
+        document.getElementById('id_order_id').value = '';
+        document.getElementById('id_customer_phone').value = '';
+    }
+});
+
+document.getElementById('id_order_id').addEventListener('input', function() {
+    if (this.value) {
+        document.getElementById('id_reservation_id').value = '';
+        document.getElementById('id_customer_phone').value = '';
+    }
+});
+
+document.getElementById('id_customer_phone').addEventListener('input', function() {
+    if (this.value) {
+        document.getElementById('id_reservation_id').value = '';
+        document.getElementById('id_order_id').value = '';
+    }
+});
+</script>
+{% endblock %}

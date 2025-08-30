@@ -151,6 +151,44 @@ class ReservationStatusUpdate(models.Model):
         return f"{self.reservation} - {self.status} - {self.created_at}"
 
 
+class CustomNotificationLog(models.Model):
+    """Log of custom notifications sent to customers"""
+    NOTIFICATION_TYPES = [
+        ('reservation', 'Reservation'),
+        ('order', 'Order'),
+        ('general', 'General Message'),
+    ]
+    
+    customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_notifications')
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='sent_notifications')
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES)
+    subject = models.CharField(max_length=200)
+    message = models.TextField()
+    sent_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications')
+    
+    # Optional related objects
+    reservation = models.ForeignKey(Reservation, on_delete=models.SET_NULL, null=True, blank=True)
+    order = models.ForeignKey('orders.Order', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Delivery channels
+    channels = models.CharField(max_length=100, help_text="Comma-separated list of channels (email, SMS)")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Custom Notification Log'
+        verbose_name_plural = 'Custom Notification Logs'
+    
+    def __str__(self):
+        return f"Notification to {self.customer.first_name} {self.customer.last_name} - {self.subject}"
+    
+    def get_channels_list(self):
+        """Return list of delivery channels"""
+        return [channel.strip() for channel in self.channels.split(',') if channel.strip()]
+
+
 class Review(models.Model):
     """
     Restaurant reviews
