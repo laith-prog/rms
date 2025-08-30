@@ -230,3 +230,10 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = False  # Set to True in production if you have SSL configured
 SESSION_COOKIE_SECURE = False  # Set to True in production if you have SSL configured
 CSRF_COOKIE_SECURE = False  # Set to True in production if you have SSL configured
+
+# Reservation Cancellation Policy Settings
+RESERVATION_CANCELLATION = {
+    'MINIMUM_ADVANCE_HOURS': int(os.getenv('RESERVATION_MIN_CANCEL_HOURS', 24)),  # Minimum hours before reservation to allow cancellation
+    'ALLOW_SAME_DAY_CANCELLATION': os.getenv('ALLOW_SAME_DAY_CANCEL', 'False').lower() == 'true',  # Allow same-day cancellations
+    'EMERGENCY_CONTACT_INFO': os.getenv('RESTAURANT_EMERGENCY_CONTACT', 'Please contact the restaurant directly for same-day cancellations'),
+}

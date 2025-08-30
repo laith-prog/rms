@@ -22,6 +22,7 @@ urlpatterns = [
     path('reservations/', views.user_reservations, name='user_reservations'),
     path('reservations/<int:reservation_id>/', views.reservation_detail, name='reservation_detail'),
     path('reservations/<int:reservation_id>/cancel/', views.cancel_reservation, name='cancel_reservation'),
+    path('reservations/<int:reservation_id>/cancellation-info/', views.reservation_cancellation_info, name='reservation_cancellation_info'),
     path('reservations/<int:reservation_id>/update-status/', views.update_reservation_status, name='update_reservation_status'),
     
     # Manager dashboard endpoints

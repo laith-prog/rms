@@ -773,13 +773,18 @@ def reservation_detail(request, reservation_id):
         'updated_at': reservation.updated_at,
     }
     
+    # Add cancellation information for customers
+    if user.is_customer:
+        from .utils import get_reservation_cancellation_info
+        data['cancellation_info'] = get_reservation_cancellation_info(reservation)
+    
     return Response(data, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def cancel_reservation(request, reservation_id):
-    """Cancel a reservation"""
+    """Cancel a reservation with time restrictions"""
     user = request.user
     
     if not user.is_customer:
@@ -788,21 +793,56 @@ def cancel_reservation(request, reservation_id):
     
     reservation = get_object_or_404(Reservation, id=reservation_id, customer=user)
     
-    # Check if reservation can be cancelled (not in the past, not already cancelled)
-    if reservation.reservation_date < timezone.now().date():
-        return Response({'error': 'Cannot cancel past reservations'}, status=status.HTTP_400_BAD_REQUEST)
+    # Check if reservation can be cancelled using utility function
+    from .utils import can_cancel_reservation
+    from datetime import datetime
     
-    if reservation.status == 'cancelled':
-        return Response({'error': 'Reservation is already cancelled'}, status=status.HTTP_400_BAD_REQUEST)
+    can_cancel, reason = can_cancel_reservation(reservation)
+    if not can_cancel:
+        return Response({'error': reason}, status=status.HTTP_400_BAD_REQUEST)
     
-    if reservation.status == 'completed':
-        return Response({'error': 'Cannot cancel completed reservations'}, status=status.HTTP_400_BAD_REQUEST)
+    # Calculate time until reservation for logging
+    now = timezone.now()
+    reservation_datetime = datetime.combine(reservation.reservation_date, reservation.reservation_time)
+    reservation_datetime = timezone.make_aware(reservation_datetime) if timezone.is_naive(reservation_datetime) else reservation_datetime
+    time_until_reservation = reservation_datetime - now
     
     # Cancel the reservation
     reservation.status = 'cancelled'
     reservation.save()
     
-    return Response({'success': 'Reservation cancelled successfully'}, status=status.HTTP_200_OK)
+    # Create status update record for tracking
+    from .models import ReservationStatusUpdate
+    ReservationStatusUpdate.objects.create(
+        reservation=reservation,
+        status='cancelled',
+        notes=f'Cancelled by customer with {time_until_reservation.total_seconds() / 3600:.1f} hours advance notice',
+        updated_by=user
+    )
+    
+    return Response({
+        'success': 'Reservation cancelled successfully',
+        'cancelled_at': now.isoformat(),
+        'advance_notice_hours': time_until_reservation.total_seconds() / 3600
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def reservation_cancellation_info(request, reservation_id):
+    """Get cancellation information for a reservation"""
+    user = request.user
+    
+    if not user.is_customer:
+        return Response({'error': 'Only customers can check their reservation cancellation info'}, 
+                         status=status.HTTP_403_FORBIDDEN)
+    
+    reservation = get_object_or_404(Reservation, id=reservation_id, customer=user)
+    
+    from .utils import get_reservation_cancellation_info
+    cancellation_info = get_reservation_cancellation_info(reservation)
+    
+    return Response(cancellation_info, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
