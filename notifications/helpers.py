@@ -17,7 +17,8 @@ def send_order_notification(order, notification_type: str, **extra_context):
         notification_type: Type of notification (order_placed, order_confirmed, etc.)
         **extra_context: Additional context variables
     """
-    if not order.user:
+    # Our Order model uses 'customer' field
+    if not getattr(order, 'customer', None):
         return
     
     # Build context from order
@@ -25,8 +26,8 @@ def send_order_notification(order, notification_type: str, **extra_context):
         'order_id': str(order.id),
         'restaurant_name': order.restaurant.name,
         'restaurant_id': str(order.restaurant.id),
-        'total_amount': str(order.total_amount),
-        'customer_name': order.user.get_full_name() or order.user.username,
+        'total_amount': str(order.total),
+        'customer_name': order.customer.get_full_name() or getattr(order.customer, 'phone', ''),
         **extra_context
     }
     
@@ -48,7 +49,7 @@ def send_order_notification(order, notification_type: str, **extra_context):
         template_name=template_name,
         notification_type=notification_type,
         context=context,
-        user=order.user,
+        user=order.customer,
         order=order
     )
 
@@ -62,7 +63,8 @@ def send_reservation_notification(reservation, notification_type: str, **extra_c
         notification_type: Type of notification
         **extra_context: Additional context variables
     """
-    if not reservation.user:
+    # Reservation model uses 'customer'
+    if not getattr(reservation, 'customer', None):
         return
     
     # Build context from reservation
@@ -71,9 +73,9 @@ def send_reservation_notification(reservation, notification_type: str, **extra_c
         'restaurant_name': reservation.restaurant.name,
         'restaurant_id': str(reservation.restaurant.id),
         'party_size': str(reservation.party_size),
-        'date': reservation.date.strftime('%B %d, %Y'),
-        'time': reservation.time.strftime('%I:%M %p'),
-        'customer_name': reservation.user.get_full_name() or reservation.user.username,
+        'date': reservation.reservation_date.strftime('%B %d, %Y'),
+        'time': reservation.reservation_time.strftime('%I:%M %p'),
+        'customer_name': reservation.customer.get_full_name() or getattr(reservation.customer, 'phone', ''),
         **extra_context
     }
     
@@ -92,7 +94,7 @@ def send_reservation_notification(reservation, notification_type: str, **extra_c
         template_name=template_name,
         notification_type=notification_type,
         context=context,
-        user=reservation.user,
+        user=reservation.customer,
         reservation=reservation
     )
 
@@ -107,15 +109,15 @@ def send_payment_notification(order, notification_type: str, payment_id: Optiona
         payment_id: Payment ID if available
         **extra_context: Additional context variables
     """
-    if not order.user:
+    if not getattr(order, 'customer', None):
         return
     
     # Build context from order and payment
     context = {
         'order_id': str(order.id),
-        'amount': str(order.total_amount),
+        'amount': str(order.total),
         'restaurant_name': order.restaurant.name,
-        'customer_name': order.user.get_full_name() or order.user.username,
+        'customer_name': order.customer.get_full_name() or getattr(order.customer, 'phone', ''),
         **extra_context
     }
     
@@ -136,7 +138,7 @@ def send_payment_notification(order, notification_type: str, payment_id: Optiona
         template_name=template_name,
         notification_type=notification_type,
         context=context,
-        user=order.user,
+        user=order.customer,
         order=order
     )
 
