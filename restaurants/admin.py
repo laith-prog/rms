@@ -38,98 +38,6 @@ def ensure_user_permissions(user, model_classes):
 
 
 # Custom Admin Sites for different roles
-class ManagerAdminSite(AdminSite):
-    """Custom admin site for managers only"""
-    site_header = 'Restaurant Manager Panel'
-    site_title = 'Manager Panel'
-    index_title = 'Restaurant Management'
-    
-    def has_permission(self, request):
-        """Only allow managers to access this admin site"""
-        if not request.user.is_active:
-            return False
-        
-        if request.user.is_superuser:
-            return True
-            
-        if request.user.is_staff_member:
-            try:
-                staff_profile = request.user.staff_profile
-                return staff_profile.role == 'manager'
-            except:
-                pass
-        
-        return False
-    
-    def login(self, request, extra_context=None):
-        """Custom login with manager-specific messaging"""
-        if extra_context is None:
-            extra_context = {}
-        extra_context['title'] = 'Manager Login'
-        extra_context['site_header'] = self.site_header
-        return super().login(request, extra_context)
-    
-    def get_urls(self):
-        """Add custom notification URLs to the admin site"""
-        from django.urls import path, include
-        urls = super().get_urls()
-        custom_urls = [
-            path('custom-notification/', 
-                 self.admin_view(self.custom_notification_view), 
-                 name='custom_notification'),
-            path('get-customer-info/', 
-                 self.admin_view(self.get_customer_info), 
-                 name='get_customer_info'),
-            path('notification-templates/', 
-                 self.admin_view(self.notification_templates), 
-                 name='notification_templates'),
-        ]
-        return custom_urls + urls
-    
-    def custom_notification_view(self, request):
-        """Custom notification view"""
-        from .custom_notification_views import custom_notification_view
-        return custom_notification_view(request)
-    
-    def get_customer_info(self, request):
-        """Get customer info view"""
-        from .custom_notification_views import get_customer_info
-        return get_customer_info(request)
-    
-    def notification_templates(self, request):
-        """Notification templates view"""
-        from .custom_notification_views import notification_templates
-        return notification_templates(request)
-
-
-class StaffAdminSite(AdminSite):
-    """Custom admin site for staff members (read-only)"""
-    site_header = 'Restaurant Staff Panel'
-    site_title = 'Staff Panel'
-    index_title = 'Restaurant Information'
-    
-    def has_permission(self, request):
-        """Allow all staff members to access this admin site"""
-        if not request.user.is_active:
-            return False
-        
-        if request.user.is_superuser:
-            return True
-            
-        return request.user.is_staff_member
-    
-    def login(self, request, extra_context=None):
-        """Custom login with staff-specific messaging"""
-        if extra_context is None:
-            extra_context = {}
-        extra_context['title'] = 'Staff Login'
-        extra_context['site_header'] = self.site_header
-        return super().login(request, extra_context)
-
-
-# Create custom admin site instances
-manager_admin_site = ManagerAdminSite(name='manager')
-staff_admin_site = StaffAdminSite(name='staff')
 class SuperAdminSite(AdminSite):
     site_header = 'Restaurant Management System - Super Admin'
     site_title = 'RMS Super Admin'
@@ -228,6 +136,38 @@ class ManagerAdminSite(AdminSite):
                 pass
         
         return super().index(request, extra_context)
+    
+    def get_urls(self):
+        """Add custom notification URLs to the admin site"""
+        from django.urls import path, include
+        urls = super().get_urls()
+        custom_urls = [
+            path('custom-notification/', 
+                 self.admin_view(self.custom_notification_view), 
+                 name='custom_notification'),
+            path('get-customer-info/', 
+                 self.admin_view(self.get_customer_info), 
+                 name='get_customer_info'),
+            path('notification-templates/', 
+                 self.admin_view(self.notification_templates), 
+                 name='notification_templates'),
+        ]
+        return custom_urls + urls
+    
+    def custom_notification_view(self, request):
+        """Custom notification view"""
+        from .custom_notification_views import custom_notification_view
+        return custom_notification_view(request)
+    
+    def get_customer_info(self, request):
+        """Get customer info view"""
+        from .custom_notification_views import get_customer_info
+        return get_customer_info(request)
+    
+    def notification_templates(self, request):
+        """Notification templates view"""
+        from .custom_notification_views import notification_templates
+        return notification_templates(request)
 
 
 class StaffAdminSite(AdminSite):
