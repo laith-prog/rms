@@ -38,6 +38,66 @@ def ensure_user_permissions(user, model_classes):
 
 
 # Custom Admin Sites for different roles
+class ManagerAdminSite(AdminSite):
+    """Custom admin site for managers only"""
+    site_header = 'Restaurant Manager Panel'
+    site_title = 'Manager Panel'
+    index_title = 'Restaurant Management'
+    
+    def has_permission(self, request):
+        """Only allow managers to access this admin site"""
+        if not request.user.is_active:
+            return False
+        
+        if request.user.is_superuser:
+            return True
+            
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                return staff_profile.role == 'manager'
+            except:
+                pass
+        
+        return False
+    
+    def login(self, request, extra_context=None):
+        """Custom login with manager-specific messaging"""
+        if extra_context is None:
+            extra_context = {}
+        extra_context['title'] = 'Manager Login'
+        extra_context['site_header'] = self.site_header
+        return super().login(request, extra_context)
+
+
+class StaffAdminSite(AdminSite):
+    """Custom admin site for staff members (read-only)"""
+    site_header = 'Restaurant Staff Panel'
+    site_title = 'Staff Panel'
+    index_title = 'Restaurant Information'
+    
+    def has_permission(self, request):
+        """Allow all staff members to access this admin site"""
+        if not request.user.is_active:
+            return False
+        
+        if request.user.is_superuser:
+            return True
+            
+        return request.user.is_staff_member
+    
+    def login(self, request, extra_context=None):
+        """Custom login with staff-specific messaging"""
+        if extra_context is None:
+            extra_context = {}
+        extra_context['title'] = 'Staff Login'
+        extra_context['site_header'] = self.site_header
+        return super().login(request, extra_context)
+
+
+# Create custom admin site instances
+manager_admin_site = ManagerAdminSite(name='manager')
+staff_admin_site = StaffAdminSite(name='staff')
 class SuperAdminSite(AdminSite):
     site_header = 'Restaurant Management System - Super Admin'
     site_title = 'RMS Super Admin'
@@ -51,6 +111,7 @@ class ManagerAdminSite(AdminSite):
     site_header = 'Restaurant Management System - Manager'
     site_title = 'RMS Manager'
     index_title = 'Restaurant Manager Dashboard'
+    index_template = 'admin/manager/index.html'
     
     def has_permission(self, request):
         # First check if the user is authenticated and active
@@ -78,6 +139,63 @@ class ManagerAdminSite(AdminSite):
             return is_manager
         except:
             return False
+    
+    def index(self, request, extra_context=None):
+        """Custom index view with dashboard statistics"""
+        extra_context = extra_context or {}
+        
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    restaurant = staff_profile.restaurant
+                    
+                    # Import here to avoid circular import
+                    from orders.models import Order
+                    
+                    # Get statistics for the manager's restaurant
+                    pending_reservations = Reservation.objects.filter(
+                        restaurant=restaurant, 
+                        status='pending'
+                    ).count()
+                    
+                    pending_orders = Order.objects.filter(
+                        restaurant=restaurant, 
+                        status='pending'
+                    ).count()
+                    
+                    preparing_orders = Order.objects.filter(
+                        restaurant=restaurant, 
+                        status='preparing'
+                    ).count()
+                    
+                    ready_orders = Order.objects.filter(
+                        restaurant=restaurant, 
+                        status='ready'
+                    ).count()
+                    
+                    # Get recent activity
+                    recent_reservations = Reservation.objects.filter(
+                        restaurant=restaurant
+                    ).order_by('-created_at')[:5]
+                    
+                    recent_orders = Order.objects.filter(
+                        restaurant=restaurant
+                    ).order_by('-created_at')[:5]
+                    
+                    extra_context.update({
+                        'pending_reservations': pending_reservations,
+                        'pending_orders': pending_orders,
+                        'preparing_orders': preparing_orders,
+                        'ready_orders': ready_orders,
+                        'recent_reservations': recent_reservations,
+                        'recent_orders': recent_orders,
+                        'restaurant': restaurant,
+                    })
+            except:
+                pass
+        
+        return super().index(request, extra_context)
 
 
 class StaffAdminSite(AdminSite):
@@ -356,9 +474,264 @@ class ManagerTableAdmin(admin.ModelAdmin):
 
 
 class ManagerReservationAdmin(admin.ModelAdmin):
-    list_display = ('customer', 'restaurant', 'table', 'party_size', 'reservation_date', 'reservation_time', 'status')
-    list_filter = ('status', 'reservation_date')
-    search_fields = ('customer__phone', 'special_requests')
+    list_display = ('customer_info', 'restaurant', 'table_info', 'party_size', 'reservation_date', 'reservation_time', 'status_badge', 'created_at', 'action_buttons')
+    list_filter = ('status', 'reservation_date', 'created_at')
+    search_fields = ('customer__phone', 'customer__first_name', 'customer__last_name', 'special_requests')
+    readonly_fields = ('created_at', 'updated_at')
+    actions = ['approve_reservations', 'reject_reservations', 'mark_as_completed']
+    
+    fieldsets = (
+        ('Reservation Details', {
+            'fields': ('customer', 'restaurant', 'table', 'party_size', 'reservation_date', 'reservation_time', 'duration_hours')
+        }),
+        ('Status & Notes', {
+            'fields': ('status', 'special_requests')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def customer_info(self, obj):
+        """Display customer information with phone"""
+        name = f"{obj.customer.first_name} {obj.customer.last_name}".strip()
+        if not name:
+            name = "Customer"
+        return format_html(
+            '<strong>{}</strong><br><small>{}</small>',
+            name,
+            obj.customer.phone
+        )
+    customer_info.short_description = 'Customer'
+    
+    def table_info(self, obj):
+        """Display table information"""
+        return format_html(
+            'Table {}<br><small>{} seats</small>',
+            obj.table.table_number,
+            obj.table.capacity
+        )
+    table_info.short_description = 'Table'
+    
+    def status_badge(self, obj):
+        """Display status with color coding"""
+        colors = {
+            'pending': '#ffc107',  # Yellow
+            'confirmed': '#28a745',  # Green
+            'cancelled': '#dc3545',  # Red
+            'completed': '#6c757d',  # Gray
+        }
+        color = colors.get(obj.status, '#6c757d')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;">{}</span>',
+            color,
+            obj.get_status_display().upper()
+        )
+    status_badge.short_description = 'Status'
+    
+    def action_buttons(self, obj):
+        """Display quick action buttons"""
+        if obj.status == 'pending':
+            return format_html(
+                '<a class="button" href="{}?action=approve" style="background-color: #28a745; color: white; margin-right: 5px;">Approve</a>'
+                '<a class="button" href="{}?action=reject" style="background-color: #dc3545; color: white;">Reject</a>',
+                reverse('admin:restaurants_reservation_change', args=[obj.pk]),
+                reverse('admin:restaurants_reservation_change', args=[obj.pk])
+            )
+        elif obj.status == 'confirmed':
+            return format_html(
+                '<a class="button" href="{}?action=complete" style="background-color: #6c757d; color: white;">Mark Complete</a>',
+                reverse('admin:restaurants_reservation_change', args=[obj.pk])
+            )
+        return '-'
+    action_buttons.short_description = 'Quick Actions'
+    action_buttons.allow_tags = True
+    
+    def approve_reservations(self, request, queryset):
+        """Bulk approve reservations"""
+        from .notifications import send_reservation_status_notification
+        updated = 0
+        for reservation in queryset.filter(status='pending'):
+            reservation.status = 'confirmed'
+            reservation.save()
+            
+            # Create status update record
+            ReservationStatusUpdate.objects.create(
+                reservation=reservation,
+                status='confirmed',
+                notes='Approved by admin',
+                updated_by=request.user
+            )
+            
+            # Send notification to customer
+            send_reservation_status_notification(reservation, 'confirmed', 'Approved by admin')
+            updated += 1
+        
+        self.message_user(request, f'{updated} reservations approved successfully.')
+    approve_reservations.short_description = "Approve selected reservations"
+    
+    def reject_reservations(self, request, queryset):
+        """Bulk reject reservations"""
+        from .notifications import send_reservation_status_notification
+        updated = 0
+        for reservation in queryset.filter(status='pending'):
+            reservation.status = 'cancelled'
+            reservation.save()
+            
+            # Create status update record
+            ReservationStatusUpdate.objects.create(
+                reservation=reservation,
+                status='cancelled',
+                notes='Rejected by admin',
+                updated_by=request.user
+            )
+            
+            # Send notification to customer
+            send_reservation_status_notification(reservation, 'cancelled', 'Rejected by admin')
+            updated += 1
+        
+        self.message_user(request, f'{updated} reservations rejected successfully.')
+    reject_reservations.short_description = "Reject selected reservations"
+    
+    def mark_as_completed(self, request, queryset):
+        """Mark reservations as completed"""
+        updated = 0
+        for reservation in queryset.filter(status='confirmed'):
+            reservation.status = 'completed'
+            reservation.save()
+            
+            # Create status update record
+            ReservationStatusUpdate.objects.create(
+                reservation=reservation,
+                status='completed',
+                notes='Marked as completed by admin',
+                updated_by=request.user
+            )
+            updated += 1
+        
+        self.message_user(request, f'{updated} reservations marked as completed.')
+    mark_as_completed.short_description = "Mark selected reservations as completed"
+    
+    def response_change(self, request, obj):
+        """Handle quick actions from URL parameters"""
+        from django.contrib import messages
+        from django.http import HttpResponseRedirect
+        from django.urls import reverse
+        from .notifications import send_reservation_status_notification
+        
+        action = request.GET.get('action')
+        if action:
+            if action == 'approve' and obj.status == 'pending':
+                obj.status = 'confirmed'
+                obj.save()
+                ReservationStatusUpdate.objects.create(
+                    reservation=obj,
+                    status='confirmed',
+                    notes='Approved by manager',
+                    updated_by=request.user
+                )
+                # Send notification
+                send_reservation_status_notification(obj, 'confirmed', 'Approved by manager')
+                messages.success(request, f'Reservation #{obj.id} approved successfully.')
+                return HttpResponseRedirect(reverse('manager:restaurants_reservation_changelist'))
+            elif action == 'reject' and obj.status == 'pending':
+                obj.status = 'cancelled'
+                obj.save()
+                ReservationStatusUpdate.objects.create(
+                    reservation=obj,
+                    status='cancelled',
+                    notes='Rejected by manager',
+                    updated_by=request.user
+                )
+                # Send notification
+                send_reservation_status_notification(obj, 'cancelled', 'Rejected by manager')
+                messages.success(request, f'Reservation #{obj.id} rejected successfully.')
+                return HttpResponseRedirect(reverse('manager:restaurants_reservation_changelist'))
+            elif action == 'complete' and obj.status == 'confirmed':
+                obj.status = 'completed'
+                obj.save()
+                ReservationStatusUpdate.objects.create(
+                    reservation=obj,
+                    status='completed',
+                    notes='Completed by manager',
+                    updated_by=request.user
+                )
+                # Send notification
+                send_reservation_status_notification(obj, 'completed', 'Completed by manager')
+                messages.success(request, f'Reservation #{obj.id} completed successfully.')
+                return HttpResponseRedirect(reverse('manager:restaurants_reservation_changelist'))
+        
+        return super().response_change(request, obj)
+    
+    def has_module_permission(self, request):
+        """Only allow managers to access this module"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                return staff_profile.role == 'manager'
+            except:
+                pass
+        return False
+    
+    def has_view_permission(self, request, obj=None):
+        """Only allow managers to view reservations"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    if obj:
+                        return obj.restaurant == staff_profile.restaurant
+                    return True
+            except:
+                pass
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Only allow managers to change reservations"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    if obj:
+                        return obj.restaurant == staff_profile.restaurant
+                    return True
+            except:
+                pass
+        return False
+    
+    def has_add_permission(self, request):
+        """Only allow managers to add reservations"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                return staff_profile.role == 'manager'
+            except:
+                pass
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Only allow managers to delete reservations"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    if obj:
+                        return obj.restaurant == staff_profile.restaurant
+                    return True
+            except:
+                pass
+        return False
     
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -482,11 +855,459 @@ class StaffReservationAdmin(admin.ModelAdmin):
         return qs.none()
 
 
+class ManagerOrderAdmin(admin.ModelAdmin):
+    list_display = ('order_id', 'customer_info', 'restaurant', 'order_type_badge', 'status_badge', 'total_amount', 'created_at', 'action_buttons')
+    list_filter = ('status', 'order_type', 'payment_status', 'created_at')
+    search_fields = ('customer__phone', 'customer__first_name', 'customer__last_name', 'special_instructions')
+    readonly_fields = ('subtotal', 'tax', 'total', 'created_at', 'updated_at')
+    actions = ['approve_orders', 'reject_orders', 'mark_as_preparing', 'mark_as_ready', 'mark_as_completed']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('customer', 'restaurant', 'reservation', 'order_type', 'status')
+        }),
+        ('Financial Details', {
+            'fields': ('subtotal', 'tax', 'delivery_fee', 'total', 'payment_status', 'payment_method')
+        }),
+        ('Order Details', {
+            'fields': ('special_instructions', 'delivery_address', 'estimated_preparation_time')
+        }),
+        ('Staff Assignment', {
+            'fields': ('assigned_chef', 'assigned_waiter')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def order_id(self, obj):
+        """Display order ID with formatting"""
+        return f"#{obj.id}"
+    order_id.short_description = 'Order ID'
+    
+    def customer_info(self, obj):
+        """Display customer information with phone"""
+        name = f"{obj.customer.first_name} {obj.customer.last_name}".strip()
+        if not name:
+            name = "Customer"
+        return format_html(
+            '<strong>{}</strong><br><small>{}</small>',
+            name,
+            obj.customer.phone
+        )
+    customer_info.short_description = 'Customer'
+    
+    def order_type_badge(self, obj):
+        """Display order type with color coding"""
+        colors = {
+            'dine_in': '#17a2b8',  # Blue
+            'pickup': '#ffc107',   # Yellow
+            'delivery': '#28a745', # Green
+        }
+        color = colors.get(obj.order_type, '#6c757d')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold;">{}</span>',
+            color,
+            obj.get_order_type_display().upper()
+        )
+    order_type_badge.short_description = 'Type'
+    
+    def status_badge(self, obj):
+        """Display status with color coding"""
+        colors = {
+            'pending': '#ffc107',    # Yellow
+            'approved': '#28a745',   # Green
+            'rejected': '#dc3545',   # Red
+            'preparing': '#fd7e14',  # Orange
+            'ready': '#20c997',      # Teal
+            'completed': '#6c757d',  # Gray
+            'cancelled': '#dc3545',  # Red
+        }
+        color = colors.get(obj.status, '#6c757d')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;">{}</span>',
+            color,
+            obj.get_status_display().upper()
+        )
+    status_badge.short_description = 'Status'
+    
+    def total_amount(self, obj):
+        """Display total with currency formatting"""
+        return f"${obj.total:.2f}"
+    total_amount.short_description = 'Total'
+    
+    def action_buttons(self, obj):
+        """Display quick action buttons"""
+        if obj.status == 'pending':
+            return format_html(
+                '<a class="button" href="{}?action=approve" style="background-color: #28a745; color: white; margin-right: 5px; font-size: 11px; padding: 2px 6px;">Approve</a>'
+                '<a class="button" href="{}?action=reject" style="background-color: #dc3545; color: white; font-size: 11px; padding: 2px 6px;">Reject</a>',
+                reverse('manager:orders_order_change', args=[obj.pk]),
+                reverse('manager:orders_order_change', args=[obj.pk])
+            )
+        elif obj.status == 'approved':
+            return format_html(
+                '<a class="button" href="{}?action=preparing" style="background-color: #fd7e14; color: white; font-size: 11px; padding: 2px 6px;">Start Preparing</a>',
+                reverse('manager:orders_order_change', args=[obj.pk])
+            )
+        elif obj.status == 'preparing':
+            return format_html(
+                '<a class="button" href="{}?action=ready" style="background-color: #20c997; color: white; font-size: 11px; padding: 2px 6px;">Mark Ready</a>',
+                reverse('manager:orders_order_change', args=[obj.pk])
+            )
+        elif obj.status == 'ready':
+            return format_html(
+                '<a class="button" href="{}?action=complete" style="background-color: #6c757d; color: white; font-size: 11px; padding: 2px 6px;">Complete</a>',
+                reverse('manager:orders_order_change', args=[obj.pk])
+            )
+        return '-'
+    action_buttons.short_description = 'Quick Actions'
+    action_buttons.allow_tags = True
+    
+    def approve_orders(self, request, queryset):
+        """Bulk approve orders"""
+        from orders.models import OrderStatusUpdate
+        from .notifications import send_order_status_notification
+        updated = 0
+        for order in queryset.filter(status='pending'):
+            order.status = 'approved'
+            order.save()
+            
+            # Create status update record
+            OrderStatusUpdate.objects.create(
+                order=order,
+                status='approved',
+                notes='Approved by manager',
+                updated_by=request.user
+            )
+            
+            # Send notification to customer
+            send_order_status_notification(order, 'approved', 'Approved by manager')
+            updated += 1
+        
+        self.message_user(request, f'{updated} orders approved successfully.')
+    approve_orders.short_description = "Approve selected orders"
+    
+    def reject_orders(self, request, queryset):
+        """Bulk reject orders"""
+        from orders.models import OrderStatusUpdate
+        from .notifications import send_order_status_notification
+        updated = 0
+        for order in queryset.filter(status='pending'):
+            order.status = 'rejected'
+            order.save()
+            
+            # Create status update record
+            OrderStatusUpdate.objects.create(
+                order=order,
+                status='rejected',
+                notes='Rejected by manager',
+                updated_by=request.user
+            )
+            
+            # Send notification to customer
+            send_order_status_notification(order, 'rejected', 'Rejected by manager')
+            updated += 1
+        
+        self.message_user(request, f'{updated} orders rejected successfully.')
+    reject_orders.short_description = "Reject selected orders"
+    
+    def mark_as_preparing(self, request, queryset):
+        """Mark orders as preparing"""
+        from orders.models import OrderStatusUpdate
+        updated = 0
+        for order in queryset.filter(status='approved'):
+            order.status = 'preparing'
+            order.save()
+            
+            # Create status update record
+            OrderStatusUpdate.objects.create(
+                order=order,
+                status='preparing',
+                notes='Started preparation',
+                updated_by=request.user
+            )
+            updated += 1
+        
+        self.message_user(request, f'{updated} orders marked as preparing.')
+    mark_as_preparing.short_description = "Mark selected orders as preparing"
+    
+    def mark_as_ready(self, request, queryset):
+        """Mark orders as ready"""
+        from orders.models import OrderStatusUpdate
+        updated = 0
+        for order in queryset.filter(status='preparing'):
+            order.status = 'ready'
+            order.save()
+            
+            # Create status update record
+            OrderStatusUpdate.objects.create(
+                order=order,
+                status='ready',
+                notes='Order ready for pickup/delivery',
+                updated_by=request.user
+            )
+            updated += 1
+        
+        self.message_user(request, f'{updated} orders marked as ready.')
+    mark_as_ready.short_description = "Mark selected orders as ready"
+    
+    def mark_as_completed(self, request, queryset):
+        """Mark orders as completed"""
+        from orders.models import OrderStatusUpdate
+        updated = 0
+        for order in queryset.filter(status='ready'):
+            order.status = 'completed'
+            order.save()
+            
+            # Create status update record
+            OrderStatusUpdate.objects.create(
+                order=order,
+                status='completed',
+                notes='Order completed',
+                updated_by=request.user
+            )
+            updated += 1
+        
+        self.message_user(request, f'{updated} orders marked as completed.')
+    mark_as_completed.short_description = "Mark selected orders as completed"
+    
+    def response_change(self, request, obj):
+        """Handle quick actions from URL parameters"""
+        from orders.models import OrderStatusUpdate
+        from django.contrib import messages
+        from django.http import HttpResponseRedirect
+        from django.urls import reverse
+        from .notifications import send_order_status_notification
+        
+        action = request.GET.get('action')
+        if action:
+            if action == 'approve' and obj.status == 'pending':
+                obj.status = 'approved'
+                obj.save()
+                OrderStatusUpdate.objects.create(
+                    order=obj,
+                    status='approved',
+                    notes='Approved by manager',
+                    updated_by=request.user
+                )
+                # Send notification
+                send_order_status_notification(obj, 'approved', 'Approved by manager')
+                messages.success(request, f'Order #{obj.id} approved successfully.')
+                return HttpResponseRedirect(reverse('manager:orders_order_changelist'))
+            elif action == 'reject' and obj.status == 'pending':
+                obj.status = 'rejected'
+                obj.save()
+                OrderStatusUpdate.objects.create(
+                    order=obj,
+                    status='rejected',
+                    notes='Rejected by manager',
+                    updated_by=request.user
+                )
+                # Send notification
+                send_order_status_notification(obj, 'rejected', 'Rejected by manager')
+                messages.success(request, f'Order #{obj.id} rejected successfully.')
+                return HttpResponseRedirect(reverse('manager:orders_order_changelist'))
+            elif action == 'preparing' and obj.status == 'approved':
+                obj.status = 'preparing'
+                obj.save()
+                OrderStatusUpdate.objects.create(
+                    order=obj,
+                    status='preparing',
+                    notes='Started preparation',
+                    updated_by=request.user
+                )
+                # Send notification
+                send_order_status_notification(obj, 'preparing', 'Started preparation')
+                messages.success(request, f'Order #{obj.id} marked as preparing.')
+                return HttpResponseRedirect(reverse('manager:orders_order_changelist'))
+            elif action == 'ready' and obj.status == 'preparing':
+                obj.status = 'ready'
+                obj.save()
+                OrderStatusUpdate.objects.create(
+                    order=obj,
+                    status='ready',
+                    notes='Order ready for pickup/delivery',
+                    updated_by=request.user
+                )
+                # Send notification
+                send_order_status_notification(obj, 'ready', 'Order ready for pickup/delivery')
+                messages.success(request, f'Order #{obj.id} marked as ready.')
+                return HttpResponseRedirect(reverse('manager:orders_order_changelist'))
+            elif action == 'complete' and obj.status == 'ready':
+                obj.status = 'completed'
+                obj.save()
+                OrderStatusUpdate.objects.create(
+                    order=obj,
+                    status='completed',
+                    notes='Order completed',
+                    updated_by=request.user
+                )
+                # Send notification
+                send_order_status_notification(obj, 'completed', 'Order completed')
+                messages.success(request, f'Order #{obj.id} completed successfully.')
+                return HttpResponseRedirect(reverse('manager:orders_order_changelist'))
+        
+        return super().response_change(request, obj)
+    
+    def has_module_permission(self, request):
+        """Only allow managers to access this module"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                return staff_profile.role == 'manager'
+            except:
+                pass
+        return False
+    
+    def has_view_permission(self, request, obj=None):
+        """Only allow managers to view orders"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    if obj:
+                        return obj.restaurant == staff_profile.restaurant
+                    return True
+            except:
+                pass
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Only allow managers to change orders"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    if obj:
+                        return obj.restaurant == staff_profile.restaurant
+                    return True
+            except:
+                pass
+        return False
+    
+    def has_add_permission(self, request):
+        """Only allow managers to add orders"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                return staff_profile.role == 'manager'
+            except:
+                pass
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Only allow managers to delete orders"""
+        if request.user.is_superuser:
+            return True
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    if obj:
+                        return obj.restaurant == staff_profile.restaurant
+                    return True
+            except:
+                pass
+        return False
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Only show orders for the manager's restaurant
+        if request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    return qs.filter(restaurant=staff_profile.restaurant)
+            except:
+                pass
+        # For superusers, show all orders
+        if request.user.is_superuser:
+            return qs
+        return qs.none()
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # Limit restaurant choices to the manager's restaurant
+        if db_field.name == "restaurant" and request.user.is_staff_member:
+            try:
+                staff_profile = request.user.staff_profile
+                if staff_profile.role == 'manager':
+                    kwargs["queryset"] = Restaurant.objects.filter(id=staff_profile.restaurant.id)
+            except:
+                kwargs["queryset"] = Restaurant.objects.none()
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
 class StaffOrderAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer', 'restaurant', 'order_type', 'status', 'created_at')
+    list_display = ('order_id', 'customer_info', 'restaurant', 'order_type_badge', 'status_badge', 'total_amount', 'created_at')
     list_filter = ('status', 'order_type')
     search_fields = ('customer__phone', 'special_instructions')
     readonly_fields = ('customer', 'restaurant', 'order_type', 'subtotal', 'tax', 'delivery_fee', 'total', 'special_instructions')
+    
+    def order_id(self, obj):
+        """Display order ID with formatting"""
+        return f"#{obj.id}"
+    order_id.short_description = 'Order ID'
+    
+    def customer_info(self, obj):
+        """Display customer information with phone"""
+        name = f"{obj.customer.first_name} {obj.customer.last_name}".strip()
+        if not name:
+            name = "Customer"
+        return format_html(
+            '<strong>{}</strong><br><small>{}</small>',
+            name,
+            obj.customer.phone
+        )
+    customer_info.short_description = 'Customer'
+    
+    def order_type_badge(self, obj):
+        """Display order type with color coding"""
+        colors = {
+            'dine_in': '#17a2b8',  # Blue
+            'pickup': '#ffc107',   # Yellow
+            'delivery': '#28a745', # Green
+        }
+        color = colors.get(obj.order_type, '#6c757d')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold;">{}</span>',
+            color,
+            obj.get_order_type_display().upper()
+        )
+    order_type_badge.short_description = 'Type'
+    
+    def status_badge(self, obj):
+        """Display status with color coding"""
+        colors = {
+            'pending': '#ffc107',    # Yellow
+            'approved': '#28a745',   # Green
+            'rejected': '#dc3545',   # Red
+            'preparing': '#fd7e14',  # Orange
+            'ready': '#20c997',      # Teal
+            'completed': '#6c757d',  # Gray
+            'cancelled': '#dc3545',  # Red
+        }
+        color = colors.get(obj.status, '#6c757d')
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: bold;">{}</span>',
+            color,
+            obj.get_status_display().upper()
+        )
+    status_badge.short_description = 'Status'
+    
+    def total_amount(self, obj):
+        """Display total with currency formatting"""
+        return f"${obj.total:.2f}"
+    total_amount.short_description = 'Total'
     
     def get_queryset(self, request):
         qs = super().get_queryset(request)

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Reservation Update - {{ restaurant.name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status-confirmed { color: #28a745; }
+        .status-cancelled { color: #dc3545; }
+        .status-completed { color: #6c757d; }
+        .reservation-details {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ restaurant.name }}</h1>
+        <h2 class="status-{{ status }}">
+            {% if status == 'confirmed' %}
+                Reservation Confirmed ✓
+            {% elif status == 'cancelled' %}
+                Reservation Cancelled
+            {% elif status == 'completed' %}
+                Thank You for Dining With Us!
+            {% else %}
+                Reservation Update
+            {% endif %}
+        </h2>
+    </div>
+    
+    <p>Dear {{ customer.first_name|default:"Valued Customer" }},</p>
+    
+    {% if status == 'confirmed' %}
+        <p>Great news! Your reservation has been confirmed. We look forward to serving you!</p>
+    {% elif status == 'cancelled' %}
+        <p>We regret to inform you that your reservation has been cancelled.</p>
+        {% if notes %}
+            <p><strong>Reason:</strong> {{ notes }}</p>
+        {% endif %}
+        <p>We apologize for any inconvenience. Please feel free to make another reservation or contact us directly.</p>
+    {% elif status == 'completed' %}
+        <p>Thank you for dining with us! We hope you had a wonderful experience.</p>
+        <p>We would love to hear about your experience. Please consider leaving us a review!</p>
+    {% endif %}
+    
+    <div class="reservation-details">
+        <h3>Reservation Details</h3>
+        <div class="detail-row">
+            <strong>Reservation ID:</strong>
+            <span>#{{ reservation.id }}</span>
+        </div>
+        <div class="detail-row">
+            <strong>Restaurant:</strong>
+            <span>{{ restaurant.name }}</span>
+        </div>
+        <div class="detail-row">
+            <strong>Date:</strong>
+            <span>{{ reservation.reservation_date|date:"F d, Y" }}</span>
+        </div>
+        <div class="detail-row">
+            <strong>Time:</strong>
+            <span>{{ reservation.reservation_time|time:"g:i A" }}</span>
+        </div>
+        <div class="detail-row">
+            <strong>Party Size:</strong>
+            <span>{{ reservation.party_size }} guest{{ reservation.party_size|pluralize }}</span>
+        </div>
+        <div class="detail-row">
+            <strong>Table:</strong>
+            <span>Table {{ reservation.table.table_number }}</span>
+        </div>
+        {% if reservation.special_requests %}
+        <div class="detail-row">
+            <strong>Special Requests:</strong>
+            <span>{{ reservation.special_requests }}</span>
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if status == 'confirmed' %}
+        <p><strong>Important Notes:</strong></p>
+        <ul>
+            <li>Please arrive on time for your reservation</li>
+            <li>If you need to cancel, please do so at least 24 hours in advance</li>
+            <li>Contact us at {{ restaurant.phone }} if you have any questions</li>
+        </ul>
+    {% endif %}
+    
+    <div class="footer">
+        <p><strong>{{ restaurant.name }}</strong><br>
+        {{ restaurant.address }}<br>
+        Phone: {{ restaurant.phone }}<br>
+        {% if restaurant.email %}Email: {{ restaurant.email }}{% endif %}</p>
+        
+        <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+</body>
+</html>

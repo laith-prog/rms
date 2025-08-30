@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Order Update - {{ restaurant.name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status-approved { color: #28a745; }
+        .status-rejected { color: #dc3545; }
+        .status-preparing { color: #fd7e14; }
+        .status-ready { color: #20c997; }
+        .status-completed { color: #6c757d; }
+        .order-details {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        .order-items {
+            margin: 20px 0;
+        }
+        .item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .item:last-child {
+            border-bottom: none;
+        }
+        .total {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 2px solid #333;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{ restaurant.name }}</h1>
+        <h2 class="status-{{ status }}">
+            {% if status == 'approved' %}
+                Order Approved ✓
+            {% elif status == 'rejected' %}
+                Order Rejected
+            {% elif status == 'preparing' %}
+                Order Being Prepared 👨‍🍳
+            {% elif status == 'ready' %}
+                Order Ready for {{ order.get_order_type_display }} 🍽️
+            {% elif status == 'completed' %}
+                Order Completed ✓
+            {% else %}
+                Order Update
+            {% endif %}
+        </h2>
+    </div>
+    
+    <p>Dear {{ customer.first_name|default:"Valued Customer" }},</p>
+    
+    {% if status == 'approved' %}
+        <p>Great news! Your order has been approved and will be prepared shortly.</p>
+        {% if order.estimated_preparation_time %}
+            <p><strong>Estimated preparation time:</strong> {{ order.estimated_preparation_time }} minutes</p>
+        {% endif %}
+    {% elif status == 'rejected' %}
+        <p>We regret to inform you that your order has been rejected.</p>
+        {% if notes %}
+            <p><strong>Reason:</strong> {{ notes }}</p>
+        {% endif %}
+        <p>We apologize for any inconvenience. Please feel free to place another order or contact us directly.</p>
+    {% elif status == 'preparing' %}
+        <p>Your order is now being prepared by our kitchen team!</p>
+        {% if order.estimated_preparation_time %}
+            <p><strong>Estimated completion time:</strong> {{ order.estimated_preparation_time }} minutes</p>
+        {% endif %}
+    {% elif status == 'ready' %}
+        <p>Your order is ready!</p>
+        {% if order.order_type == 'pickup' %}
+            <p><strong>Please come to the restaurant to pick up your order.</strong></p>
+        {% elif order.order_type == 'delivery' %}
+            <p><strong>Your order is being delivered to:</strong><br>{{ order.delivery_address }}</p>
+        {% elif order.order_type == 'dine_in' %}
+            <p><strong>Your order will be served to your table shortly.</strong></p>
+        {% endif %}
+    {% elif status == 'completed' %}
+        <p>Your order has been completed. Thank you for choosing {{ restaurant.name }}!</p>
+        <p>We hope you enjoyed your meal. Please consider leaving us a review!</p>
+    {% endif %}
+    
+    <div class="order-details">
+        <h3>Order Details</h3>
+        <div class="detail-row">
+            <strong>Order ID:</strong>
+            <span>#{{ order.id }}</span>
+        </div>
+        <div class="detail-row">
+            <strong>Restaurant:</strong>
+            <span>{{ restaurant.name }}</span>
+        </div>
+        <div class="detail-row">
+            <strong>Order Type:</strong>
+            <span>{{ order.get_order_type_display }}</span>
+        </div>
+        <div class="detail-row">
+            <strong>Order Date:</strong>
+            <span>{{ order.created_at|date:"F d, Y g:i A" }}</span>
+        </div>
+        {% if order.reservation %}
+        <div class="detail-row">
+            <strong>Reservation:</strong>
+            <span>#{{ order.reservation.id }} - {{ order.reservation.reservation_date }} {{ order.reservation.reservation_time }}</span>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="order-items">
+        <h3>Order Items</h3>
+        {% for item in order.items.all %}
+        <div class="item">
+            <span>{{ item.quantity }}x {{ item.menu_item.name }}</span>
+            <span>${{ item.item_total|floatformat:2 }}</span>
+        </div>
+        {% endfor %}
+        
+        <div class="total">
+            <div class="detail-row">
+                <span>Subtotal:</span>
+                <span>${{ order.subtotal|floatformat:2 }}</span>
+            </div>
+            <div class="detail-row">
+                <span>Tax:</span>
+                <span>${{ order.tax|floatformat:2 }}</span>
+            </div>
+            {% if order.delivery_fee > 0 %}
+            <div class="detail-row">
+                <span>Delivery Fee:</span>
+                <span>${{ order.delivery_fee|floatformat:2 }}</span>
+            </div>
+            {% endif %}
+            <div class="detail-row">
+                <span>Total:</span>
+                <span>${{ order.total|floatformat:2 }}</span>
+            </div>
+        </div>
+    </div>
+    
+    {% if status == 'ready' and order.order_type == 'pickup' %}
+        <p><strong>Pickup Instructions:</strong></p>
+        <ul>
+            <li>Please bring your order confirmation (#{{ order.id }})</li>
+            <li>Our address: {{ restaurant.address }}</li>
+            <li>Contact us at {{ restaurant.phone }} if you have any questions</li>
+        </ul>
+    {% endif %}
+    
+    <div class="footer">
+        <p><strong>{{ restaurant.name }}</strong><br>
+        {{ restaurant.address }}<br>
+        Phone: {{ restaurant.phone }}<br>
+        {% if restaurant.email %}Email: {{ restaurant.email }}{% endif %}</p>
+        
+        <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+</body>
+</html>
